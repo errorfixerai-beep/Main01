@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/custom_dropdown.dart';
+import '../widgets/app_brand_background.dart';
 import 'dashboard_screen.dart';
 
 class UsernameSetupScreen extends StatefulWidget {
@@ -21,7 +22,6 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
 
   // NOTE: kept as language NAMES (not translated) since this list is sent
   // to the backend as-is and also drives ApiService.setupUsername(language: ...).
-  // Extended to match the same 7 languages now offered in Settings.
   final _languages = const ['English', 'Hindi', 'Hinglish', 'Tamil', 'Bengali', 'Marathi', 'Urdu'];
 
   @override
@@ -42,6 +42,58 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     if (base.length > 15) base = base.substring(0, 15);
     final suffix = (DateTime.now().millisecondsSinceEpoch % 900 + 100).toString();
     _usernameCtrl.text = '${base}_$suffix';
+  }
+
+  // ⚠️ FIX (Boss request): language picker now opens as a bottom sheet
+  // (drag handle + title + tick on selected item) instead of the old
+  // top-overlay DropdownButtonFormField menu — same visual pattern as the
+  // "Select Platform" sheet already used elsewhere in the app.
+  Future<void> _openLanguageSheet() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.purple.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(context.tr('select_language_label'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ..._languages.map((lang) => ListTile(
+                      title: Text(lang, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      trailing: lang == _language ? const Icon(Icons.check_rounded, color: AppColors.purple) : null,
+                      onTap: () => Navigator.pop(sheetContext, lang),
+                    )),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null && mounted) {
+      setState(() => _language = selected);
+    }
   }
 
   Future<void> _save() async {
@@ -142,11 +194,6 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     await _showReferralDialog();
     if (!mounted) return;
 
-    // ⚠️ POP-UP CLEANUP: the auto-triggered "Connect YouTube now?" dialog +
-    // immediate OAuth launch was removed from here. Social OAuth connect
-    // flows now live exclusively in profile_screen.dart (see
-    // _connectYoutube/_connectMeta there) via static ListTile-style cards
-    // the user opens on their own — never auto-popped right after signup.
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const DashboardScreen()));
   }
 
@@ -156,46 +203,50 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     final avatar = auth.user?['avatar'];
 
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 30),
-              Text(context.tr('setup_profile_title'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 24),
-              Center(
-                child: Container(
-                  width: 82, height: 82,
-                  decoration: BoxDecoration(gradient: AppColors.gradient, shape: BoxShape.circle),
-                  child: avatar != null && avatar.toString().isNotEmpty
-                      ? ClipOval(child: Image.network(avatar, fit: BoxFit.cover))
-                      : const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 36)),
+      // ⚠️ FIX (Boss request): same off-white base + watermark as Splash,
+      // for a modern/consistent look on the profile setup step.
+      backgroundColor: const Color(0xFFFAF7FC),
+      body: AppBrandBackground(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 30),
+                Text(context.tr('setup_profile_title'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 24),
+                Center(
+                  child: Container(
+                    width: 82, height: 82,
+                    decoration: BoxDecoration(gradient: AppColors.gradient, shape: BoxShape.circle),
+                    child: avatar != null && avatar.toString().isNotEmpty
+                        ? ClipOval(child: Image.network(avatar, fit: BoxFit.cover))
+                        : const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 36)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(context.tr('username_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-              const SizedBox(height: 4),
-              Text(context.tr('username_suggested_hint'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _usernameCtrl,
-                decoration: const InputDecoration(hintText: '@tech_creator', prefixIcon: Icon(Icons.alternate_email_rounded, size: 18)),
-              ),
-              const SizedBox(height: 16),
-              Text(context.tr('select_language_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-              const SizedBox(height: 6),
-              CustomDropdown<String>(
-                value: _language,
-                items: _languages,
-                labelBuilder: (l) => l,
-                onChanged: (v) => setState(() => _language = v ?? 'English'),
-                prefixIcon: const Icon(Icons.language_rounded, size: 18, color: AppColors.purple),
-              ),
-              const SizedBox(height: 30),
-              GradientButton(label: context.tr('continue_btn'), loading: _loading, onPressed: _save),
-            ],
+                const SizedBox(height: 24),
+                Text(context.tr('username_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(context.tr('username_suggested_hint'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _usernameCtrl,
+                  decoration: const InputDecoration(hintText: '@tech_creator', prefixIcon: Icon(Icons.alternate_email_rounded, size: 18)),
+                ),
+                const SizedBox(height: 16),
+                Text(context.tr('select_language_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                const SizedBox(height: 6),
+                // ⚠️ FIX: bottom-sheet PickerField instead of CustomDropdown.
+                PickerField(
+                  value: _language,
+                  onTap: _openLanguageSheet,
+                  prefixIcon: const Icon(Icons.language_rounded, size: 18, color: AppColors.purple),
+                ),
+                const SizedBox(height: 30),
+                GradientButton(label: context.tr('continue_btn'), loading: _loading, onPressed: _save),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import 'upload_screen.dart';
 
@@ -49,10 +50,10 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
   }
 
   String _healthLabel(int score) {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    if (score >= 35) return 'Needs Attention';
-    return 'At Risk';
+    if (score >= 80) return context.tr('audit_health_excellent');
+    if (score >= 60) return context.tr('audit_health_good');
+    if (score >= 35) return context.tr('audit_health_needs_attention');
+    return context.tr('audit_health_at_risk');
   }
 
   Color _healthColor(int score) {
@@ -65,7 +66,7 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Channel Audit')),
+      appBar: AppBar(title: Text(context.tr('channel_audit_title'))),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -77,7 +78,7 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
                     EmptyView(message: _error!, icon: Icons.error_outline_rounded),
                   ])
                 : _audit == null
-                    ? const EmptyView(message: 'No audit data yet.', icon: Icons.fact_check_outlined)
+                    ? EmptyView(message: context.tr('audit_no_data'), icon: Icons.fact_check_outlined)
                     : _buildAudit(_audit!),
       ),
     );
@@ -95,7 +96,7 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(20)),
           child: Column(children: [
-            Text('Channel Health', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(context.tr('audit_channel_health'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text('$score/100', style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900)),
             const SizedBox(height: 4),
@@ -112,19 +113,19 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
           childAspectRatio: 1.5,
           children: [
             StatCard(
-              label: 'Engagement %',
+              label: context.tr('audit_engagement_pct'),
               value: audit['engagementPct'] != null ? '${audit['engagementPct']}%' : '—',
             ),
             StatCard(
-              label: 'Shorts : Long Ratio (7d)',
+              label: context.tr('audit_shorts_long_ratio'),
               value: audit['weeklyShortToLongRatio'] != null ? '${audit['weeklyShortToLongRatio']}' : '—',
             ),
-            StatCard(label: 'Subscribers', value: '${audit['subscriberCount'] ?? '—'}'),
-            StatCard(label: 'Uploads (7d)', value: '${audit['recentUploadsLast7Days'] ?? 0}'),
+            StatCard(label: context.tr('audit_subscribers'), value: '${audit['subscriberCount'] ?? '—'}'),
+            StatCard(label: context.tr('audit_uploads_7d'), value: '${audit['recentUploadsLast7Days'] ?? 0}'),
           ],
         ),
         const SizedBox(height: 24),
-        Text('Recommendations', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+        Text(context.tr('audit_recommendations'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
         ...recommendations.map((r) => Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -143,7 +144,7 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
                     child: TextButton.icon(
                       onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UploadScreen())),
                       icon: const Icon(Icons.upload_rounded, size: 15),
-                      label: const Text('Upload Now'),
+                      label: Text(context.tr('audit_upload_now_btn')),
                     ),
                   ),
                 ],

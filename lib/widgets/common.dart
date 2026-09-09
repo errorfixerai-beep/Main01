@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
+import '../providers/language_provider.dart';
 
 // ---------------- Toast ----------------
 void showToast(BuildContext context, String message, {bool isError = false, bool isSuccess = false}) {
@@ -22,24 +24,64 @@ void showApiError(BuildContext context, Object err) {
   showToast(context, err.toString().replaceFirst('ApiException: ', ''), isError: true);
 }
 
+// ⚠️ FIX (Boss request, round 2 — "ek bat dono me farak hai"): the
+// earlier version guessed a "diamond issue" purely by scanning the error
+// TEXT for the words "diamond"/"insufficient" — fragile, because it
+// breaks the moment the backend's wording changes even slightly, and it
+// can't reliably tell a real diamond shortfall apart from any other error
+// that happens to mention those words. This now checks the STRUCTURED
+// signal first: ApiException.status (HTTP 402 Payment Required is the
+// standard status for a balance/credit shortfall) and ApiException.code
+// (machine-readable — same pattern the app already uses for
+// 'TOKEN_EXPIRED' in api_service.dart), and only falls back to text
+// matching if neither field is present. Both showAiError (used by every
+// paid AI button — title/description/tags/caption/hashtags/ideas) AND
+// showUploadError (used by the Publish/Upload flow in upload_screen.dart)
+// share this one check, so the distinction the Boss asked for —
+// "Upload screen charges diamonds → show the upgrade message on
+// shortfall" vs "AI Ideas screen is free → a failure there is a real
+// backend error, not a diamond issue" — now works correctly in both
+// places from a single source of truth.
+bool _isDiamondShortfall(Object err) {
+  if (err is ApiException) {
+    if (err.status == 402) return true;
+    final code = err.code?.toUpperCase();
+    if (code == 'INSUFFICIENT_DIAMONDS' || code == 'INSUFFICIENT_BALANCE' || code == 'DIAMOND_BALANCE_LOW') {
+      return true;
+    }
+  }
+  final raw = err.toString().replaceFirst('ApiException: ', '').toLowerCase();
+  return raw.contains('diamond') || raw.contains('insufficient');
+}
+
 // User-friendly fallback for AI generation failures specifically (Groq
 // model errors, timeouts, rate limits) — the raw error can be a technical
 // message like "Groq API error (404): ..." which isn't meaningful to a
-// creator tapping "Generate". Shows a plain retry-oriented message instead.
-//
-// ⚠️ (Boss request): when the failure is specifically a diamond-balance
-// issue, show the exact upgrade prompt instead of the raw backend text or
-// the generic "temporarily unavailable" message — every paid AI button
-// (title/description/tags/caption/hashtags) routes through this function,
-// so this one change covers all of them consistently.
+// creator tapping "Generate". Shows a plain retry-oriented message
+// instead — UNLESS it's specifically a diamond shortfall, in which case
+// it shows the upgrade prompt instead (see _isDiamondShortfall above).
 void showAiError(BuildContext context, Object err) {
-  final raw = err.toString().replaceFirst('ApiException: ', '');
-  final isCreditIssue = raw.toLowerCase().contains('diamond') || raw.toLowerCase().contains('insufficient');
   showToast(
     context,
-    isCreditIssue
-        ? 'Diamond is not available, please upgrade'
-        : 'AI generation is temporarily unavailable — please try again in a moment.',
+    _isDiamondShortfall(err) ? context.tr('diamond_error_upgrade') : context.tr('ai_error_generic'),
+    isError: true,
+  );
+}
+
+// ⚠️ NEW (Boss request, round 2 — "upload screen wale me daimond lagege
+// agr daimond nahi to massage aana chahiye"): the actual Publish/Upload
+// submit flow was showing the raw backend error via showApiError() for
+// EVERY failure, so an insufficient-diamond failure showed whatever raw
+// text the backend sent instead of a clear upgrade prompt. This checks
+// for a diamond shortfall the same way showAiError does and shows the
+// same upgrade message for that one case — but for any OTHER upload
+// failure (bad file, network issue, server error) it still shows the
+// backend's own message, since uploading isn't an AI feature and a
+// generic "AI unavailable" message would be the wrong explanation there.
+void showUploadError(BuildContext context, Object err) {
+  showToast(
+    context,
+    _isDiamondShortfall(err) ? context.tr('diamond_error_upgrade') : err.toString().replaceFirst('ApiException: ', ''),
     isError: true,
   );
 }

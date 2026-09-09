@@ -35,7 +35,15 @@ class _AiIdeasScreenState extends State<AiIdeasScreen> {
     'niche_tech', 'niche_gaming', 'niche_lifestyle', 'niche_business',
     'niche_fitness', 'niche_food', 'niche_travel', 'niche_comedy',
   ];
+  // ⚠️ HIDDEN (Boss request — "Facebook/Instagram verification pending,
+  // YouTube verification complete, sirf YouTube launch kar rahe hain"):
+  // this map itself is UNCHANGED and still contains instagram/facebook
+  // labels — nothing was deleted here. The picker below (_pickPlatform)
+  // just restricts which KEYS are offered as options, so only "YouTube"
+  // ever shows up in the sheet. To bring Instagram/Facebook back later,
+  // change `_platformOptionsShown` below back to `_platforms.keys.toList()`.
   static const _platforms = {'youtube': 'platform_youtube_label', 'instagram': 'platform_instagram_label', 'facebook': 'platform_facebook_label'};
+  static const _platformOptionsShown = ['youtube'];
 
   String _nicheKey = _nicheKeys.first;
   String _platform = 'youtube';
@@ -87,7 +95,7 @@ class _AiIdeasScreenState extends State<AiIdeasScreen> {
   Future<void> _pickPlatform() async {
     final picked = await _showPickerSheet(
       title: context.tr('select_platform_title'),
-      options: _platforms.keys.toList(),
+      options: _platformOptionsShown,
       labelBuilder: (k) => context.tr(_platforms[k]!),
       selected: _platform,
     );

@@ -108,26 +108,51 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
   }
 
+  // ⚠️ RESTORED (Boss request): the solid light background + faint
+  // repeating play-icon watermark pattern that used to sit behind the
+  // logo/text. A previous change made the whole Scaffold transparent and
+  // removed every decorative shape along with it — that's what turned the
+  // splash fully black (it was showing through to the native black
+  // launch-screen behind Flutter). This brings back ONLY the background:
+  // a light off-white base with faint purple play-icon shapes scattered
+  // near the corners, same as the reference look. Nothing about the
+  // logo, text, or layout below changed.
+  Widget _watermarkPattern() {
+    return IgnorePointer(
+      child: Opacity(
+        opacity: 0.07,
+        child: GridView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            mainAxisSpacing: 30,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1,
+          ),
+          itemCount: 32,
+          itemBuilder: (context, index) => Icon(
+            Icons.play_circle_outline_rounded,
+            color: AppColors.purple,
+            size: 42,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // ⚠️ FIX (Boss request — "background hamara transparent hai to koi
-    // bhi background nahin hona chahiye"): removed the solid off-white
-    // Scaffold color AND every decorative shape (_decoTriangle /
-    // _decoFrame boxes) that used to be scattered around the frame. The
-    // splash now shows nothing but the real logo, tagline, and footer on
-    // a fully transparent Scaffold.
-    //
-    // Note: Scaffold.backgroundColor: Colors.transparent only controls
-    // the Flutter-drawn background — if you also want the native Android
-    // launch (before Flutter's first frame) to be transparent, that's a
-    // separate change in android/app/src/main/res/values/styles.xml
-    // (the launch theme's windowBackground), which isn't a file in this
-    // batch — let me know if you want that too and send styles.xml.
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      // ⚠️ RESTORED: light background color (was Colors.transparent,
+      // which let the native black launch background show through).
+      backgroundColor: const Color(0xFFFAF7FC),
       body: SafeArea(
         child: Stack(
           children: [
+            // Faint watermark pattern behind everything else.
+            Positioned.fill(child: _watermarkPattern()),
+
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -191,8 +216,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               ),
             ),
 
-            // ⚠️ NEW (Boss request): "Powered by TubePilot" centered at
-            // the very bottom of the splash screen.
+            // ⚠️ "Powered by TubePilot" centered at the very bottom of the
+            // splash screen.
             Positioned(
               left: 0,
               right: 0,

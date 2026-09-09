@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../services/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../widgets/common.dart';
@@ -158,24 +160,34 @@ class _DashboardHomeState extends State<_DashboardHome> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UpcomingScreen())).then((_) => _load(showLoader: false));
   }
 
-  String? get _userEmail {
-    final email = data?['email'] ?? data?['user']?['email'] ?? data?['account']?['email'];
+  // ⚠️ FIX (Boss request — avatar/greeting showed the wrong or a stale
+  // email): this used to read email/name off the /dashboard endpoint's
+  // response (`data?['email']`, etc), which isn't guaranteed to carry the
+  // same fields the account actually has. Settings screen (settings_screen.dart)
+  // already gets this right by reading straight from AuthProvider's cached
+  // user object — so the dashboard avatar/greeting now reads from the SAME
+  // source of truth instead of the dashboard payload, guaranteeing they can
+  // never disagree with each other again.
+  String? _userEmail(BuildContext context) {
+    final user = context.watch<AuthProvider>().user ?? {};
+    final email = user['email'];
     return (email is String && email.isNotEmpty) ? email : null;
   }
 
   // Real first-letter fallback for the profile avatar — used whenever
   // there's no connected YouTube channel photo to show instead.
-  String get _userInitial {
-    final email = _userEmail;
+  String _userInitial(BuildContext context) {
+    final email = _userEmail(context);
     return (email != null) ? email.trim()[0].toUpperCase() : '?';
   }
 
   // Real first name for the "Hello, {name}" greeting — falls back to the
   // email's local-part, then to a generic greeting if neither is set.
-  String get _userFirstName {
-    final name = data?['name'] ?? data?['user']?['name'] ?? data?['account']?['name'];
+  String _userFirstName(BuildContext context) {
+    final user = context.watch<AuthProvider>().user ?? {};
+    final name = user['name'];
     if (name is String && name.trim().isNotEmpty) return name.trim().split(' ').first;
-    final email = _userEmail;
+    final email = _userEmail(context);
     if (email != null && email.contains('@')) return email.split('@').first;
     return context.tr('there_fallback');
   }
@@ -208,15 +220,25 @@ class _DashboardHomeState extends State<_DashboardHome> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 26,
-              height: 26,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(border: Border.all(color: AppColors.purple, width: 2), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.play_arrow_rounded, color: AppColors.purple, size: 15),
-            ),
+            // ⚠️ FIX (Boss request — "mock icon hata ke real logo use
+            // karo"): the bordered play-icon placeholder is replaced with
+            // the actual app logo (assets/splash.png — a transparent PNG,
+            // so no background container/border is needed around it
+            // anymore).
+            Image.asset('assets/splash.png', width: 26, height: 26),
             const SizedBox(width: 8),
-            Text(context.tr('app_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            // ⚠️ FIX (Boss request — "TubePilot ko Tube Pilot karo, Tube
+            // black aur Pilot plum color mein"): split into two colored
+            // spans instead of one plain Text widget.
+            RichText(
+              text: const TextSpan(
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, fontFamily: 'inherit'),
+                children: [
+                  TextSpan(text: 'Tube', style: TextStyle(color: Colors.black)),
+                  TextSpan(text: 'Pilot', style: TextStyle(color: AppColors.purple)),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
@@ -246,15 +268,12 @@ class _DashboardHomeState extends State<_DashboardHome> {
                     shape: BoxShape.circle,
                     border: Border.all(color: Theme.of(context).colorScheme.surface, width: 1.5),
                   ),
-                  // ⚠️ FIX (Boss request): always show the signed-up
-                  // account's email first letter here — NEVER the
-                  // connected YouTube channel's logo/photo. The YouTube
-                  // channel photo previously took priority; that's
-                  // reversed now so this avatar always reflects the
-                  // TubePilot account itself, regardless of which
-                  // channel is connected.
+                  // Always shows the signed-up TubePilot account's email
+                  // first letter — never a connected YouTube channel's
+                  // logo/photo — and now always agrees with what Settings
+                  // shows, since both read from AuthProvider.
                   child: Text(
-                    _userInitial,
+                    _userInitial(context),
                     style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -276,7 +295,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.black),
                       children: [
                         TextSpan(text: '${context.tr('hello_greeting')} '),
-                        TextSpan(text: '$_userFirstName! 👋', style: const TextStyle(color: AppColors.purple)),
+                        TextSpan(text: '${_userFirstName(context)}! 👋', style: const TextStyle(color: AppColors.purple)),
                       ],
                     ),
                   ),
@@ -285,13 +304,6 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   const SizedBox(height: 20),
 
                   // ---------------- Stats grid (real data) ----------------
-                  // ⚠️ FIX ("BOTTOM OVERFLOWED BY 31 PIXELS"): 1.5 made each
-                  // cell shorter than the content actually needed (icon +
-                  // label + value + subtitle), so it overflowed at the
-                  // bottom on every phone size. Lowered aspect ratio gives
-                  // each cell more height; _MetricCard below also got
-                  // tighter padding/spacing so there's comfortable margin
-                  // either way.
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
@@ -332,16 +344,6 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   // ---------------- Quick Actions ----------------
                   Text(context.tr('quick_actions'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),
-                  // ⚠️ FIX (Boss request — "AI Ideas icon niche ho gaya"):
-                  // Row's default crossAxisAlignment is `center`, which
-                  // vertically centers each _quickAction based on its own
-                  // total height. Since labels wrap to a different number
-                  // of lines per action ("Upload Video" wraps to 2 lines,
-                  // "AI Ideas" fits on 1), the shorter items were getting
-                  // centered against the tallest item — visually dropping
-                  // their icon lower than the rest. Pinning to `start`
-                  // keeps every icon on the same top edge regardless of
-                  // how many lines its label wraps to.
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -379,7 +381,15 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(context.tr('upcoming_schedule'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      Expanded(
+                        child: Text(
+                          context.tr('upcoming_schedule'),
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UpcomingScreen())),
                         child: Text(context.tr('see_all'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
@@ -546,9 +556,6 @@ class _MetricCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(color: AppColors.purple.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 4))],
         ),
-        // ⚠️ FIX: mainAxisSize.min + tighter internal spacing (see below)
-        // keeps this Column's total height comfortably under the grid
-        // cell's height instead of overflowing it.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,

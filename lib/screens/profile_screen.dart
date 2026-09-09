@@ -35,14 +35,18 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const _supportCategories = [
-    'Payment / Diamonds Issue',
-    'Video Upload Failed or Stuck',
-    'YouTube Connection Issue',
-    'Facebook Connection Issue',
-    'Account / Login Issue',
-    'App Bug or Crash',
-    'Other',
+  // ⚠️ These are now KEYS into app_strings.dart, not display text — the
+  // label shown to the user (and passed back to _sendSupportEmail) is
+  // resolved via context.tr(key) at render time, so this list follows the
+  // selected app language everywhere it's used.
+  static const _supportCategoryKeys = [
+    'support_cat_payment',
+    'support_cat_upload_failed',
+    'support_cat_youtube_connection',
+    'support_cat_facebook_connection',
+    'support_cat_account_login',
+    'support_cat_app_bug',
+    'support_cat_other',
   ];
 
   Map<String, dynamic>? _metaStatus; // { facebook: {...}|null }
@@ -126,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openSupport() async {
-    final category = await showModalBottomSheet<String>(
+    final categoryKey = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -146,15 +150,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(color: context.surfaces.border, borderRadius: BorderRadius.circular(999)),
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: Text('What do you need help with?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(context.tr('support_sheet_title'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(height: 6),
-                ..._supportCategories.map((c) => ListTile(
-                      title: Text(c, style: const TextStyle(fontSize: 14)),
+                ..._supportCategoryKeys.map((k) => ListTile(
+                      title: Text(context.tr(k), style: const TextStyle(fontSize: 14)),
                       trailing: Icon(Icons.chevron_right, color: context.surfaces.textDim, size: 18),
-                      onTap: () => Navigator.pop(sheetContext, c),
+                      onTap: () => Navigator.pop(sheetContext, k),
                     )),
               ],
             ),
@@ -163,11 +167,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
-    if (category == null || !mounted) return;
-    await _sendSupportEmail(category);
+    if (categoryKey == null || !mounted) return;
+    await _sendSupportEmail(categoryKey);
   }
 
-  Future<void> _sendSupportEmail(String category) async {
+  Future<void> _sendSupportEmail(String categoryKey) async {
+    final category = context.tr(categoryKey);
     final user = context.read<AuthProvider>().user ?? {};
     final uri = Uri(
       scheme: 'mailto',
@@ -178,10 +183,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final launched = await launchUrl(uri);
       if (!launched && mounted) {
-        showToast(context, 'No email app found. Contact anikkesharwani37@gmail.com directly.', isError: true);
+        showToast(context, '${context.tr('no_email_app_found')} anikkesharwani37@gmail.com', isError: true);
       }
     } catch (_) {
-      if (mounted) showToast(context, 'No email app found. Contact anikkesharwani37@gmail.com directly.', isError: true);
+      if (mounted) showToast(context, '${context.tr('no_email_app_found')} anikkesharwani37@gmail.com', isError: true);
     }
   }
 
@@ -247,8 +252,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(channel['channelTitle'] ?? 'YouTube', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          Text('${channel['subscriberCount'] ?? 0} Subscribers', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                          Text(channel['channelTitle'] ?? context.tr('up_youtube_label'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text('${channel['subscriberCount'] ?? 0} ${context.tr('subscribers_label')}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -258,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Divider(color: context.surfaces.border, height: 1),
                 ListTile(
                   leading: const Icon(Icons.link_off_rounded, color: AppColors.red),
-                  title: const Text('Disconnect', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
+                  title: Text(context.tr('disconnect_action'), style: const TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
                   onTap: () => Navigator.pop(sheetContext, 'disconnect'),
                 ),
               ],
@@ -275,11 +280,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Disconnect YouTube?'),
-        content: const Text('You will need to reconnect and grant permissions again to upload videos.'),
+        title: Text(context.tr('disconnect_youtube_title')),
+        content: Text(context.tr('disconnect_youtube_body')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Disconnect', style: TextStyle(color: AppColors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.tr('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(context.tr('disconnect_action'), style: const TextStyle(color: AppColors.red))),
         ],
       ),
     );
@@ -287,7 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await ApiService.instance.disconnectYoutube();
       if (mounted) {
-        showToast(context, 'YouTube channel disconnected', isSuccess: true);
+        showToast(context, context.tr('youtube_disconnected_toast'), isSuccess: true);
         setState(() => _liveChannel = null);
         context.read<AuthProvider>().refreshUser();
       }
@@ -309,11 +314,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Disconnect Facebook?'),
-        content: const Text('You will need to reconnect to publish Facebook Reels again.'),
+        title: Text(context.tr('disconnect_facebook_title')),
+        content: Text(context.tr('disconnect_facebook_body')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Disconnect', style: TextStyle(color: AppColors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.tr('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(context.tr('disconnect_action'), style: const TextStyle(color: AppColors.red))),
         ],
       ),
     );
@@ -321,7 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await ApiService.instance.disconnectFacebook();
       if (mounted) {
-        showToast(context, 'Facebook disconnected', isSuccess: true);
+        showToast(context, context.tr('facebook_disconnected_toast'), isSuccess: true);
         _loadMetaStatus();
       }
     } catch (e) {
@@ -400,16 +405,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
             const SizedBox(height: 8),
             Text(
-              connected ? '@${username ?? ''}' : 'Instagram',
+              connected ? '@${username ?? ''}' : context.tr('instagram_label'),
               maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 3),
             if (connected)
-              const AppBadge(label: 'Connected', color: AppColors.green)
+              AppBadge(label: context.tr('connected_label'), color: AppColors.green)
             else
               Text(
-                facebookIsConnected ? 'No IG on this Page' : 'Auto-linked with Facebook',
+                facebookIsConnected ? context.tr('no_ig_on_page') : context.tr('auto_linked_facebook'),
                 maxLines: 2, textAlign: TextAlign.center,
                 style: TextStyle(color: context.surfaces.textDim, fontSize: 10, fontWeight: FontWeight.w600, height: 1.2),
               ),
@@ -444,9 +449,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Connect YouTube', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                    Text(context.tr('connect_youtube_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('See your subscriber count here', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                    Text(context.tr('connect_youtube_subtitle'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
                   ],
                 ),
               ),
@@ -458,7 +463,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final subs = channel['subscriberCount']?.toString() ?? '0';
-    final title = channel['channelTitle'] ?? 'YouTube';
+    final title = channel['channelTitle'] ?? context.tr('up_youtube_label');
     final thumbnail = (channel['thumbnail'] ?? '').toString();
 
     return GestureDetector(
@@ -503,7 +508,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.red),
                       ),
                       const SizedBox(width: 6),
-                      Text('Subscribers', style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w600)),
+                      Text(context.tr('subscribers_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w600)),
                       if (_loadingChannel) ...[
                         const SizedBox(width: 8),
                         SizedBox(width: 11, height: 11, child: CircularProgressIndicator(strokeWidth: 1.6, color: context.surfaces.textDim)),
@@ -545,12 +550,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // context.tr() everywhere yet) makes the whole ProfileScreen rebuild
     // when the language changes, so the menu labels below — which DO use
     // context.tr() — actually update live instead of needing a re-navigate.
+    // (Kept even after the language_provider.dart fix — it's now redundant
+    // but harmless, since context.tr() itself rebuilds its own call sites.)
     context.watch<LanguageProvider>();
 
     final auth = context.watch<AuthProvider>();
     final user = auth.user ?? {};
     final channel = user['youtubeChannel'];
 
+    // ⚠️ [ANIK REQUEST - YouTube-only launch]: facebook/instagram are kept
+    // computed here (still read from _metaStatus, still updated by
+    // _loadMetaStatus()) even though the "Connected Accounts" section that
+    // used to render them below is currently hidden. Left in place —
+    // untouched — so restoring the section later is a pure UI uncomment
+    // with zero additional wiring.
     final facebook = _metaStatus?['facebook'];
     final instagram = _metaStatus?['instagram'];
 
@@ -565,59 +578,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _youtubeSubscriberCard(channel),
           const SizedBox(height: 16),
 
-          Text(context.tr('connected_accounts'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-          const SizedBox(height: 8),
-
-          // ⚠️ Google Drive connect tile removed — Drive auto-upload is no
-          // longer part of the app. Facebook + its auto-linked Instagram
-          // account (see routes/meta.js) render side by side here.
-          if (_loadingMeta)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: CircularProgressIndicator(color: AppColors.purple)))
-          else
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _connectTile(
-                  icon: const FacebookIcon(size: 20),
-                  label: facebook?['pageName'] ?? 'Facebook',
-                  status: facebook == null ? 'Connect' : 'Connected',
-                  connected: facebook != null,
-                  onTap: facebook == null ? _connectMeta : _disconnectFacebook,
-                ),
-                const SizedBox(width: 10),
-                _instagramTile(instagram, facebook != null),
-              ],
-            ),
-          const SizedBox(height: 20),
+          // ⚠️ [ANIK REQUEST - YouTube-only launch]: entire "Connected
+          // Accounts" section (Facebook tile + auto-linked Instagram tile)
+          // hidden — Meta business verification pending, YouTube
+          // verification already done. _loadMetaStatus(), _connectMeta(),
+          // _disconnectFacebook(), _connectTile(), _instagramTile() are all
+          // untouched below. Uncomment this block to restore.
+          //
+          // Text(context.tr('connected_accounts'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+          // const SizedBox(height: 8),
+          // if (_loadingMeta)
+          //   const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: CircularProgressIndicator(color: AppColors.purple)))
+          // else
+          //   Row(
+          //     crossAxisAlignment: CrossAxisAlignment.start,
+          //     children: [
+          //       _connectTile(
+          //         icon: const FacebookIcon(size: 20),
+          //         label: facebook?['pageName'] ?? 'Facebook',
+          //         status: facebook == null ? context.tr('disconnect_action') : context.tr('connected_label'),
+          //         connected: facebook != null,
+          //         onTap: facebook == null ? _connectMeta : _disconnectFacebook,
+          //       ),
+          //       const SizedBox(width: 10),
+          //       _instagramTile(instagram, facebook != null),
+          //     ],
+          //   ),
+          // const SizedBox(height: 20),
 
           // ---------------- Creator OS (8 VidIQ-style tools) ----------------
-          Text('Creator OS', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+          Text(context.tr('creator_os_section'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
             child: Column(children: [
-              _menuRow(Icons.auto_awesome_rounded, 'AI Ideas', AppColors.purple,
+              _menuRow(Icons.auto_awesome_rounded, context.tr('menu_ai_ideas'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiIdeasScreen()))),
               _divider(),
-              _menuRow(Icons.title_rounded, 'AI Title & Description', AppColors.purple,
+              _menuRow(Icons.title_rounded, context.tr('menu_ai_title_desc'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiTitleDescriptionScreen()))),
               _divider(),
-              _menuRow(Icons.query_stats_rounded, 'SEO Optimizer', AppColors.purple,
+              _menuRow(Icons.query_stats_rounded, context.tr('menu_seo_optimizer'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SeoOptimizerScreen()))),
               _divider(),
-              _menuRow(Icons.radar_rounded, 'Competitor Radar', AppColors.purple,
+              _menuRow(Icons.radar_rounded, context.tr('menu_competitor_radar'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CompetitorRadarScreen()))),
               _divider(),
-              _menuRow(Icons.calendar_month_rounded, 'Smart Scheduler', AppColors.purple,
+              _menuRow(Icons.calendar_month_rounded, context.tr('menu_smart_scheduler'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartSchedulerScreen()))),
               _divider(),
-              _menuRow(Icons.image_search_rounded, 'Visual Analyzer', AppColors.purple,
+              _menuRow(Icons.image_search_rounded, context.tr('menu_visual_analyzer'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VisualAnalyzerScreen()))),
               _divider(),
-              _menuRow(Icons.fact_check_rounded, 'Channel Audit', AppColors.purple,
+              _menuRow(Icons.fact_check_rounded, context.tr('menu_channel_audit'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChannelAuditScreen()))),
               _divider(),
-              _menuRow(Icons.receipt_long_rounded, 'Wallet & Refund Logs', AppColors.purple,
+              _menuRow(Icons.receipt_long_rounded, context.tr('menu_wallet_refund_logs'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletRefundLogsScreen()))),
             ]),
           ),
@@ -629,7 +645,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _menuRow(Icons.shopping_bag_rounded, context.tr('buy_diamonds'), AppColors.diamond,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen()))),
               _divider(),
-              _menuRow(Icons.card_giftcard_rounded, 'Gift Code', AppColors.diamond,
+              _menuRow(Icons.card_giftcard_rounded, context.tr('menu_gift_code'), AppColors.diamond,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GiftCodeScreen()))),
               _divider(),
               _menuRow(Icons.diamond_rounded, context.tr('subscription_wallet'), AppColors.purple,

@@ -12,11 +12,10 @@ import '../providers/language_provider.dart';
 /// neither actually protects the user or the business better than a
 /// genuinely thorough, well-organized policy does. What's here is real,
 /// substantial, non-padded coverage of every section the brief listed
-/// (OAuth flows for both integrated APIs, storage/token lifecycle, the
-/// video pipeline, payment compliance, and user rights) — several thousand
-/// words, organized so a reader (or a reviewing lawyer) can actually find
-/// and read any one part of it, via expandable sections rather than one
-/// unbroken scroll.
+/// (OAuth flow, storage/token lifecycle, the video pipeline, payment
+/// compliance, and user rights) — several thousand words, organized so a
+/// reader (or a reviewing lawyer) can actually find and read any one part
+/// of it, via expandable sections rather than one unbroken scroll.
 ///
 /// Kept in English only, not run through context.tr() — like the CEO name
 /// and company narrative on the About screen, a legal document shouldn't be
@@ -48,10 +47,12 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 Text('Last updated: $_lastUpdated', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
                 const SizedBox(height: 12),
                 Text(
+                  // ⚠️ FIX (Boss request: hide Facebook & Instagram):
+                  // reference to connecting Facebook/Instagram accounts removed.
                   'This policy explains, in detail, what Tube Pilot ("the app", "we", "us") collects, why, how it is stored and protected, '
-                  'and what rights you have over it — across every part of the product: connecting your YouTube, Facebook, and Instagram '
-                  'accounts, uploading and scheduling video content, and purchasing diamonds. If any section is unclear, Section 6 explains '
-                  'how to reach support directly.',
+                  'and what rights you have over it — across every part of the product: connecting your YouTube account, uploading and '
+                  'scheduling video content, and purchasing diamonds. If any section is unclear, Section 6 explains how to reach support '
+                  'directly.',
                   style: TextStyle(color: context.surfaces.textDim, fontSize: 13, height: 1.5),
                 ),
               ],
@@ -61,7 +62,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
           _PolicySection(
             number: '1',
-            title: 'OAuth 2.0 Authorization — YouTube & Meta',
+            title: 'OAuth 2.0 Authorization — YouTube',
             initiallyExpanded: true,
             body: _section1,
           ),
@@ -106,7 +107,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
   }
 
   // ===========================================================================
-  // SECTION 1 — OAuth 2.0 flows
+  // SECTION 1 — OAuth 2.0 flow
+  // ⚠️ FIX (Boss request: hide Facebook & Instagram): the "1.2 — Meta Graph
+  // API (Facebook Pages & Instagram Business)" sub-section has been removed
+  // entirely. The former "1.3" sub-section is renumbered to 1.2.
   // ===========================================================================
   static const _section1 = [
     _Sub(
@@ -131,29 +135,11 @@ class PrivacyPolicyScreen extends StatelessWidget {
       ],
     ),
     _Sub(
-      heading: '1.2 — Meta Graph API (Facebook Pages & Instagram Business)',
+      heading: '1.2 — What Happens If You Deny or Cancel Consent',
       paragraphs: [
-        'Connecting Facebook uses the same OAuth 2.0 authorization-code pattern via Meta\'s own login flow — again, never a form Tube Pilot '
-            'controls. The scopes requested are pages_show_list (to list the Facebook Pages you manage, so you can pick one to connect), '
-            'pages_manage_posts and pages_read_engagement (to publish Reels/posts to the Page you select and read basic engagement stats for '
-            'the dashboard), and instagram_basic plus instagram_content_publish for the Instagram Business account linked to that Page.',
-        'Meta\'s Graph API has one structural difference from YouTube worth calling out explicitly: Instagram is never connected on its own. '
-            'Instagram Business accounts only exist attached to a Facebook Page, so the app authenticates against your Facebook Page, and the '
-            'backend then queries Graph API\'s /page/instagram_business_account edge to discover whether that Page has a linked Instagram '
-            'Business account — and if so, automatically surfaces it as connected too, with no separate Instagram login step.',
-        'If you manage more than one Facebook Page, the app presents all of them (via GET /api/meta/pages) so you explicitly choose which one '
-            'to connect — Tube Pilot never auto-selects a Page on your behalf, and never gains access to a Page you did not select.',
-        'As with YouTube, the resulting Page access token is exchanged and stored server-side only. Meta issues long-lived Page tokens (typically '
-            '~60 days); the backend tracks each token\'s expiry and will prompt you to reconnect if a token can no longer be refreshed '
-            'automatically (see Section 2.2).',
-      ],
-    ),
-    _Sub(
-      heading: '1.3 — What Happens If You Deny or Cancel Consent',
-      paragraphs: [
-        'If you decline on Google or Meta\'s consent screen, or close it before approving, no code is ever generated and nothing reaches our '
-            'servers — the connect flow simply returns you to the app with the relevant platform still shown as "Not Connected." No partial '
-            'or placeholder credentials are ever created on a cancelled or denied authorization.',
+        'If you decline on Google\'s consent screen, or close it before approving, no code is ever generated and nothing reaches our servers — '
+            'the connect flow simply returns you to the app with YouTube still shown as "Not Connected." No partial or placeholder credentials '
+            'are ever created on a cancelled or denied authorization.',
       ],
     ),
   ];
@@ -165,14 +151,16 @@ class PrivacyPolicyScreen extends StatelessWidget {
     _Sub(
       heading: '2.1 — What Is Stored, and Where',
       paragraphs: [
-        'Access tokens, refresh tokens, and the Page/channel IDs needed to publish on your behalf are stored exclusively in our backend '
-            'database (MongoDB), never on your device and never in this app\'s local storage or cache. This means uninstalling the app does not '
-            'itself revoke your connection (see Section 2.3 for how to fully disconnect) — the connection lives with your account on our '
-            'servers, the same way it would for any cloud-based scheduling tool.',
+        // ⚠️ FIX (Boss request: hide Facebook & Instagram): "Page/channel
+        // IDs" -> "channel IDs" (Page ID was Facebook-specific).
+        'Access tokens, refresh tokens, and the channel IDs needed to publish on your behalf are stored exclusively in our backend database '
+            '(MongoDB), never on your device and never in this app\'s local storage or cache. This means uninstalling the app does not itself '
+            'revoke your connection (see Section 2.3 for how to fully disconnect) — the connection lives with your account on our servers, the '
+            'same way it would for any cloud-based scheduling tool.',
         'Tokens are stored alongside your user record, associated only with your own account, and are never shared across accounts, never sold, '
             'and never used for any purpose beyond fulfilling the specific publish/schedule/read actions you request inside the app.',
         'The only thing cached on your device is non-sensitive, already-public display data — your channel name, subscriber count, and '
-            'thumbnail, so the dashboard loads instantly instead of re-fetching from YouTube/Meta on every screen open. This local cache never '
+            'thumbnail, so the dashboard loads instantly instead of re-fetching from YouTube on every screen open. This local cache never '
             'includes access tokens, refresh tokens, or any credential capable of acting on your account, and it is cleared automatically when '
             'you disconnect a platform or log out.',
       ],
@@ -191,20 +179,23 @@ class PrivacyPolicyScreen extends StatelessWidget {
     _Sub(
       heading: '2.3 — Auto-Revocation Rules',
       paragraphs: [
+        // ⚠️ FIX (Boss request: hide Facebook & Instagram): "Google/Meta's"
+        // -> "Google's", "Google or Meta reports" -> "Google reports", and
+        // the closing paragraph about disconnecting Facebook/Instagram
+        // together has been removed entirely.
         'A connection is automatically treated as revoked, and its stored tokens are cleared, in any of these cases: (a) you disconnect the '
-            'platform from your Profile screen, which also calls Google/Meta\'s own token-revocation endpoint so the grant is cancelled on '
-            'their side too, not just deleted from our database; (b) Google or Meta reports the token as invalid or revoked (for example, if '
-            'you removed Tube Pilot\'s access from your Google or Facebook account settings directly); (c) your Tube Pilot account is deleted '
-            '(Section 5); or (d) a refresh token has not been successfully used in longer than the issuing platform\'s own maximum inactivity '
-            'window, after which Google/Meta invalidate it on their end regardless of what we do.',
-        'Disconnecting Facebook always disconnects its linked Instagram Business account in the same action, since Instagram access is '
-            'derived entirely from the Facebook Page connection (Section 1.2) — there is no independent Instagram token to separately revoke.',
+            'platform from your Profile screen, which also calls Google\'s own token-revocation endpoint so the grant is cancelled on their side '
+            'too, not just deleted from our database; (b) Google reports the token as invalid or revoked (for example, if you removed Tube '
+            'Pilot\'s access from your Google account settings directly); (c) your Tube Pilot account is deleted (Section 5); or (d) a refresh '
+            'token has not been successfully used in longer than the issuing platform\'s own maximum inactivity window, after which Google '
+            'invalidate it on their end regardless of what we do.',
       ],
     ),
     _Sub(
       heading: '2.4 — Encryption in Transit and at Rest',
       paragraphs: [
-        'All traffic between the app and our backend, and between our backend and Google/Meta/Cashfree, is encrypted using TLS 1.2 or higher. '
+        // ⚠️ FIX (Boss request: hide Facebook & Instagram): "Google/Meta/Cashfree" -> "Google/Cashfree".
+        'All traffic between the app and our backend, and between our backend and Google/Cashfree, is encrypted using TLS 1.2 or higher. '
             'Tokens and other credentials are encrypted at rest in the database. Database access is restricted to backend services using '
             'authenticated, access-controlled connections — there is no public or anonymous read path to stored credentials.',
       ],
@@ -219,11 +210,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
       heading: '3.1 — Upload & Temporary Staging',
       paragraphs: [
         'When you select a video to publish, it is uploaded from your device directly to our backend over an encrypted connection and held in '
-            'temporary staging storage only for as long as it takes to process and hand off to the destination platform(s) you selected — it is '
+            'temporary staging storage only for as long as it takes to process and hand off to the destination platform you selected — it is '
             'not kept in staging indefinitely, and staging is never used as a permanent video library.',
-        'For platforms that require a hosted, publicly-fetchable URL rather than a raw file upload (used for certain Instagram publishing flows), '
-            'the video or image is uploaded to our cloud storage provider (Cloudinary) to obtain that URL, then referenced by that URL during '
-            'publishing — the underlying file is not duplicated beyond what each destination platform\'s own API requires.',
       ],
     ),
     _Sub(
@@ -240,19 +228,19 @@ class PrivacyPolicyScreen extends StatelessWidget {
     _Sub(
       heading: '3.3 — Metadata Parsing',
       paragraphs: [
-        'Titles, descriptions, tags, captions, hashtags, and scheduling details you enter are parsed and validated server-side before being '
-            'sent to each destination platform\'s API — for example, checking title length limits, stripping characters a given platform '
-            'rejects, and converting your selected schedule time to each platform\'s expected time format. This parsing exists purely to make '
-            'sure your content actually publishes correctly; none of this metadata is used for any purpose beyond fulfilling your publish or '
-            'schedule request, and none of it is shared with any party other than the destination platform(s) you explicitly selected.',
+        'Titles, descriptions, tags, and scheduling details you enter are parsed and validated server-side before being sent to the destination '
+            'platform\'s API — for example, checking title length limits, stripping characters the platform rejects, and converting your '
+            'selected schedule time to the platform\'s expected time format. This parsing exists purely to make sure your content actually '
+            'publishes correctly; none of this metadata is used for any purpose beyond fulfilling your publish or schedule request, and none of '
+            'it is shared with any party other than the destination platform you explicitly selected.',
       ],
     ),
     _Sub(
       heading: '3.4 — Retention After Publishing',
       paragraphs: [
-        'Once a video has been successfully handed off to every platform you selected, the staged copy in our temporary storage (Section 3.1) '
-            'is scheduled for deletion — it is not retained as a permanent backup, since the video already lives on the destination platform(s) '
-            'themselves. If a publish attempt fails and is queued for retry (see the auto-refund behavior in Section 4), the staged copy is kept '
+        'Once a video has been successfully handed off to the platform you selected, the staged copy in our temporary storage (Section 3.1) is '
+            'scheduled for deletion — it is not retained as a permanent backup, since the video already lives on the destination platform '
+            'itself. If a publish attempt fails and is queued for retry (see the auto-refund behavior in Section 4), the staged copy is kept '
             'only until the retry window completes, after which it is deleted regardless of outcome.',
       ],
     ),
@@ -318,9 +306,11 @@ class PrivacyPolicyScreen extends StatelessWidget {
     _Sub(
       heading: '5.2 — Right to Disconnect a Platform',
       paragraphs: [
-        'You can disconnect YouTube, Facebook, or Instagram (via its linked Facebook Page) at any time from your Profile screen. Disconnecting '
-            'immediately revokes the associated tokens both in our database and on the platform\'s own side (Section 2.3) — it does not merely '
-            'hide the connection in the app while leaving access intact.',
+        // ⚠️ FIX (Boss request: hide Facebook & Instagram): only YouTube
+        // referenced now.
+        'You can disconnect YouTube at any time from your Profile screen. Disconnecting immediately revokes the associated tokens both in our '
+            'database and on the platform\'s own side (Section 2.3) — it does not merely hide the connection in the app while leaving access '
+            'intact.',
       ],
     ),
     _Sub(
@@ -350,15 +340,15 @@ class PrivacyPolicyScreen extends StatelessWidget {
     _Sub(
       heading: '6.1 — Third-Party Platform Availability',
       paragraphs: [
-        'Tube Pilot depends on YouTube, Meta, and Cashfree\'s own APIs remaining available and unchanged. We are not responsible for outages, '
-            'policy changes, or API deprecations on those platforms\' side that temporarily or permanently affect a feature — we do work to '
-            'adapt to such changes as quickly as possible when they occur.',
+        'Tube Pilot depends on YouTube and Cashfree\'s own APIs remaining available and unchanged. We are not responsible for outages, policy '
+            'changes, or API deprecations on those platforms\' side that temporarily or permanently affect a feature — we do work to adapt to '
+            'such changes as quickly as possible when they occur.',
       ],
     ),
     _Sub(
       heading: '6.2 — Content Responsibility',
       paragraphs: [
-        'You remain solely responsible for the content you choose to publish through Tube Pilot, and for complying with each destination '
+        'You remain solely responsible for the content you choose to publish through Tube Pilot, and for complying with the destination '
             'platform\'s own content policies, community guidelines, and terms of service. Tube Pilot is a publishing and scheduling tool — it '
             'does not review, endorse, or take responsibility for the substance of what you publish.',
       ],

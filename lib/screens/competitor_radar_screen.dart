@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 
 class CompetitorRadarScreen extends StatefulWidget {
@@ -121,7 +122,7 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
       );
       _inputCtrl.clear();
       await _load();
-      if (mounted) showToast(context, 'Competitor added', isSuccess: true);
+      if (mounted) showToast(context, context.tr('radar_competitor_added_toast'), isSuccess: true);
     } catch (e) {
       if (mounted) showApiError(context, e);
     } finally {
@@ -154,7 +155,7 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
     final avgVph = vphValues.isEmpty ? 0.0 : vphValues.reduce((a, b) => a + b) / vphValues.length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Competitor Radar')),
+      appBar: AppBar(title: Text(context.tr('radar_title'))),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -168,7 +169,7 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
                   controller: _inputCtrl,
                   focusNode: _focusNode,
                   decoration: InputDecoration(
-                    hintText: 'Search channel name, @handle or ID',
+                    hintText: context.tr('radar_search_hint'),
                     suffixIcon: _searching
                         ? const Padding(
                             padding: EdgeInsets.all(14),
@@ -225,7 +226,7 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
             else if (_showSuggestions && !_searching && _suggestions.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
-                child: Text('No channels found', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+                child: Text(context.tr('radar_no_channels_found'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
               ),
 
             const SizedBox(height: 20),
@@ -237,13 +238,13 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
                 child: Row(children: [
                   const Icon(Icons.warning_amber_rounded, color: AppColors.red, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Competitor stats unavailable — YouTube Data API key not configured on the server.', style: TextStyle(color: AppColors.red, fontSize: 12.5))),
+                  Expanded(child: Text(context.tr('radar_api_key_error'), style: TextStyle(color: AppColors.red, fontSize: 12.5))),
                 ]),
               ),
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: LoadingView())
             else if (_competitors.isEmpty)
-              const EmptyView(message: 'Track a competitor channel to see their subscriber count and Views Per Hour.', icon: Icons.radar_rounded)
+              EmptyView(message: context.tr('radar_empty_state'), icon: Icons.radar_rounded)
             else
               ..._competitors.map((c) {
                 final stats = c['lastStats'] as Map<String, dynamic>? ?? {};
@@ -274,7 +275,7 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
                             children: [
                               Text(c['label'] ?? c['handle'] ?? c['channelId'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5), overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 3),
-                              Text('${_fmt(stats['subscriberCount'] as num?)} subscribers', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                              Text('${_fmt(stats['subscriberCount'] as num?)} ${context.tr('radar_subscribers_suffix')}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -291,7 +292,7 @@ class _CompetitorRadarScreenState extends State<CompetitorRadarScreen> {
                           Text('${vph.toStringAsFixed(1)} VPH', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: isTrending ? AppColors.green : null)),
                           if (isTrending) ...[
                             const SizedBox(width: 8),
-                            const AppBadge(label: '🔥 Trending 2x+', color: AppColors.green),
+                            AppBadge(label: context.tr('radar_trending_badge'), color: AppColors.green),
                           ],
                         ]),
                       ],

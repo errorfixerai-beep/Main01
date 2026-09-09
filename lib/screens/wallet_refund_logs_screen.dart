@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import 'diamond_store_screen.dart';
 
@@ -49,7 +50,7 @@ class _WalletRefundLogsScreenState extends State<WalletRefundLogsScreen> {
     final balance = _wallet?['diamondBalance'] ?? 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Wallet & Refund Logs')),
+      appBar: AppBar(title: Text(context.tr('wallet_refund_logs_title'))),
       body: _loading
           ? const LoadingView()
           : RefreshIndicator(
@@ -66,7 +67,7 @@ class _WalletRefundLogsScreenState extends State<WalletRefundLogsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Diamond Balance', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          Text(context.tr('diamond_balance_label'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 6),
                           Row(children: [
                             const Text('💎', style: TextStyle(fontSize: 22)),
@@ -76,16 +77,16 @@ class _WalletRefundLogsScreenState extends State<WalletRefundLogsScreen> {
                         ]),
                         ElevatedButton(
                           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen())).then((_) => _load()),
-                          child: const Text('Upgrade'),
+                          child: Text(context.tr('upgrade_btn')),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text('Auto-Refund History', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  Text(context.tr('auto_refund_history'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 10),
                   if (refunds.isEmpty)
-                    const EmptyView(message: 'No auto-refunds yet — this fills in automatically if an upload fails after retries.', icon: Icons.replay_rounded)
+                    EmptyView(message: context.tr('no_auto_refunds_yet'), icon: Icons.replay_rounded)
                   else
                     ...refunds.map((t) {
                       final amount = t['diamondsForSpend'] ?? t['diamondPackage'] ?? 0;
@@ -101,7 +102,7 @@ class _WalletRefundLogsScreenState extends State<WalletRefundLogsScreen> {
                               const Text('🟢', style: TextStyle(fontSize: 14)),
                               const SizedBox(width: 6),
                               Text(
-                                '+$amount Diamonds (Auto-Refunded)',
+                                context.tr('diamonds_auto_refunded').replaceAll('%d', '$amount'),
                                 style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.green, fontSize: 13.5),
                               ),
                             ]),

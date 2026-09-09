@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 
 /// Screen 5/7 — thumbnail mockup previewer + on-device contrast analysis.
@@ -25,7 +26,14 @@ enum _MockupTab { instagram, youtube, facebook }
 class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
   File? _image;
   final _titleCtrl = TextEditingController(text: 'Your Video Title Here');
-  _MockupTab _tab = _MockupTab.instagram;
+  // ⚠️ UPDATE (Boss request — "Facebook/Instagram verification pending,
+  // YouTube verification complete, sirf YouTube launch kar rahe hain"):
+  // default tab changed from instagram -> youtube, since Instagram/
+  // Facebook are no longer selectable below (see SegmentedButton in
+  // build()). The _MockupTab enum and every mockupFrame() case for
+  // instagram/facebook are UNCHANGED — restoring their segments below
+  // brings this all back instantly.
+  _MockupTab _tab = _MockupTab.youtube;
   bool _analyzing = false;
   double? _contrastScore; // 0-100
   double? _brightness; // 0-255
@@ -85,10 +93,10 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
 
   String _readabilityNote() {
     if (_contrastScore == null || _brightness == null) return '';
-    if (_contrastScore! < 35) return 'Low contrast — text overlays may be hard to read. Try a bolder background or add a dark gradient overlay.';
-    if (_brightness! < 60) return 'Image is quite dark overall — white text should stay readable, but check on a small mobile thumbnail.';
-    if (_brightness! > 200) return 'Image is quite bright overall — use dark text or add a subtle overlay for contrast.';
-    return 'Good balance of contrast and brightness for thumbnail text.';
+    if (_contrastScore! < 35) return context.tr('visual_note_low_contrast');
+    if (_brightness! < 60) return context.tr('visual_note_dark_overall');
+    if (_brightness! > 200) return context.tr('visual_note_bright_overall');
+    return context.tr('visual_note_good_balance');
   }
 
   Widget _mockupFrame() {
@@ -102,7 +110,7 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
               child: Row(children: [
                 const CircleAvatar(radius: 14, backgroundColor: AppColors.purple),
                 const SizedBox(width: 8),
-                const Text('your_channel', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                Text(context.tr('visual_your_channel_handle'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
               ]),
             ),
             AspectRatio(aspectRatio: 1, child: _imageBox()),
@@ -125,7 +133,7 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                     const SizedBox(height: 3),
-                    Text('Your Channel · 12K views', style: TextStyle(color: context.surfaces.textDim, fontSize: 11)),
+                    Text(context.tr('visual_your_channel_views'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11)),
                   ]),
                 ),
               ]),
@@ -140,7 +148,7 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
               child: Row(children: [
                 const CircleAvatar(radius: 14, backgroundColor: AppColors.purple),
                 const SizedBox(width: 8),
-                const Text('Your Page', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                Text(context.tr('visual_your_page'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
               ]),
             ),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Align(alignment: Alignment.centerLeft, child: Text(title, style: const TextStyle(fontSize: 12.5)))),
@@ -169,7 +177,7 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Visual Analyzer')),
+      appBar: AppBar(title: Text(context.tr('visual_analyzer_title'))),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -179,24 +187,30 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
               height: 140,
               decoration: BoxDecoration(border: Border.all(color: AppColors.purple, style: BorderStyle.solid), borderRadius: BorderRadius.circular(16)),
               child: _image == null
-                  ? const Center(
+                  ? Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.add_photo_alternate_rounded, color: AppColors.purple, size: 30),
-                        SizedBox(height: 8),
-                        Text('Tap to pick a thumbnail', style: TextStyle(fontWeight: FontWeight.w600)),
+                        const Icon(Icons.add_photo_alternate_rounded, color: AppColors.purple, size: 30),
+                        const SizedBox(height: 8),
+                        Text(context.tr('visual_tap_to_pick'), style: const TextStyle(fontWeight: FontWeight.w600)),
                       ]),
                     )
                   : ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_image!, fit: BoxFit.cover, width: double.infinity)),
             ),
           ),
           const SizedBox(height: 16),
-          TextFormField(controller: _titleCtrl, onChanged: (_) => setState(() {}), decoration: const InputDecoration(hintText: 'Preview title text')),
+          TextFormField(controller: _titleCtrl, onChanged: (_) => setState(() {}), decoration: InputDecoration(hintText: context.tr('visual_preview_title_hint'))),
           const SizedBox(height: 20),
+          // ⚠️ HIDDEN (Boss request — "Facebook/Instagram verification
+          // pending, YouTube verification complete, sirf YouTube launch kar
+          // rahe hain"): Instagram and Facebook segments removed from this
+          // selector — only YouTube Mobile remains selectable. _MockupTab
+          // enum and both mockupFrame() cases above for instagram/facebook
+          // are UNCHANGED; to restore, just add these two segments back:
+          //   ButtonSegment(value: _MockupTab.instagram, label: Text(context.tr('visual_tab_instagram'))),
+          //   ButtonSegment(value: _MockupTab.facebook, label: Text(context.tr('visual_tab_facebook'))),
           SegmentedButton<_MockupTab>(
-            segments: const [
-              ButtonSegment(value: _MockupTab.instagram, label: Text('Instagram Feed')),
-              ButtonSegment(value: _MockupTab.youtube, label: Text('YouTube Mobile')),
-              ButtonSegment(value: _MockupTab.facebook, label: Text('Facebook Post')),
+            segments: [
+              ButtonSegment(value: _MockupTab.youtube, label: Text(context.tr('visual_tab_youtube'))),
             ],
             selected: {_tab},
             onSelectionChanged: (s) => setState(() => _tab = s.first),
@@ -205,7 +219,7 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
           _mockupFrame(),
           if (_image != null) ...[
             const SizedBox(height: 24),
-            Text('Visual Score', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            Text(context.tr('visual_score_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             if (_analyzing)
               const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: LoadingView())
@@ -219,7 +233,7 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
                     Row(children: [
                       Icon(Icons.contrast_rounded, color: _scoreColor(_contrastScore!), size: 20),
                       const SizedBox(width: 8),
-                      Text('Contrast: ${_contrastScore!.toStringAsFixed(0)}/100', style: TextStyle(fontWeight: FontWeight.w800, color: _scoreColor(_contrastScore!))),
+                      Text('${context.tr('visual_contrast_label')}: ${_contrastScore!.toStringAsFixed(0)}/100', style: TextStyle(fontWeight: FontWeight.w800, color: _scoreColor(_contrastScore!))),
                     ]),
                     const SizedBox(height: 6),
                     ClipRRect(

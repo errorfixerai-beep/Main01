@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/apply_to_video_sheet.dart';
 
@@ -37,7 +38,7 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
   Future<void> _generate() async {
     final topic = _topicCtrl.text.trim();
     if (topic.isEmpty) {
-      showToast(context, 'Enter a topic first', isError: true);
+      showToast(context, context.tr('atd_topic_empty_error'), isError: true);
       return;
     }
     setState(() {
@@ -51,7 +52,7 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
       final list = (_mode == _Mode.title ? res['titles'] : res['descriptions']) as List? ?? [];
       setState(() => _options = list.cast<String>());
       if (_options.isEmpty && mounted) {
-        showToast(context, 'No options came back — try a different topic', isError: true);
+        showToast(context, context.tr('atd_no_options_error'), isError: true);
       }
     } catch (e) {
       if (mounted) showAiError(context, e);
@@ -62,12 +63,12 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
 
   void _copy(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    showToast(context, 'Copied to clipboard', isSuccess: true);
+    showToast(context, context.tr('atd_copied_toast'), isSuccess: true);
   }
 
   Future<void> _applyToVideo() async {
     if (_selectedIndex == null) {
-      showToast(context, 'Select one option first', isError: true);
+      showToast(context, context.tr('atd_select_option_error'), isError: true);
       return;
     }
     final chosen = _options[_selectedIndex!];
@@ -81,7 +82,7 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Title & Description')),
+      appBar: AppBar(title: Text(context.tr('atd_title'))),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -91,19 +92,19 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(999)),
             child: Row(children: [
-              Expanded(child: _modeTab('Title', _Mode.title)),
-              Expanded(child: _modeTab('Description', _Mode.description)),
+              Expanded(child: _modeTab(context.tr('atd_mode_title'), _Mode.title)),
+              Expanded(child: _modeTab(context.tr('atd_mode_description'), _Mode.description)),
             ]),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _topicCtrl,
-            decoration: InputDecoration(hintText: _mode == _Mode.title ? 'What is the video about?' : 'What should the description cover?'),
+            decoration: InputDecoration(hintText: _mode == _Mode.title ? context.tr('atd_topic_hint_title') : context.tr('atd_topic_hint_description')),
             onSubmitted: (_) => _generate(),
           ),
           const SizedBox(height: 16),
           GradientButton(
-            label: _mode == _Mode.title ? 'Generate Titles' : 'Generate Descriptions',
+            label: _mode == _Mode.title ? context.tr('atd_generate_titles_btn') : context.tr('atd_generate_descriptions_btn'),
             icon: Icons.auto_awesome_rounded,
             loading: _loading,
             onPressed: _generate,
@@ -111,9 +112,7 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
           const SizedBox(height: 24),
           if (!_loading && _options.isEmpty)
             EmptyView(
-              message: _mode == _Mode.title
-                  ? 'Enter a topic and generate a few title options to compare.'
-                  : 'Enter a topic and generate a few description options to compare.',
+              message: _mode == _Mode.title ? context.tr('atd_empty_title') : context.tr('atd_empty_description'),
               icon: Icons.title_rounded,
             ),
           ..._options.asMap().entries.map((entry) {
@@ -164,7 +163,7 @@ class _AiTitleDescriptionScreenState extends State<AiTitleDescriptionScreen> {
               child: ElevatedButton.icon(
                 onPressed: _applyToVideo,
                 icon: const Icon(Icons.send_rounded, size: 18),
-                label: const Text('Apply to Video'),
+                label: Text(context.tr('apply_to_video_btn_label')),
               ),
             ),
           ],

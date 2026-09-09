@@ -67,6 +67,11 @@ flutter:
     - assets/signature.png
     - assets/icon.png
     - assets/splash.png
+    # ⚠️ NEW (Boss request): real onboarding step icons — transparent
+    # background PNGs replacing the boxed Material icons.
+    - assets/onboarding_upload.png
+    - assets/onboarding_anywhere.png
+    - assets/onboarding_ai.png
 
 # Launcher icon config
 flutter_launcher_icons:

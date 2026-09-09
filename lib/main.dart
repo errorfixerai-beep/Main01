@@ -23,6 +23,23 @@ const String oneSignalAppId = '205c5c05-ad00-4e06-a8f4-d7ff9245ccfd';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ⚠️ FIX (Boss request: native white screen was showing 6-7s): keep only
+  // the FAST local read (SharedPreferences) before runApp() — this still
+  // prevents the old English-flash bug. The SLOW network-dependent
+  // Firebase/OneSignal init calls have been moved below, AFTER runApp(),
+  // so they no longer block the first Flutter frame from being drawn.
+  final languageProvider = LanguageProvider();
+  await languageProvider.loadSaved();
+
+  runApp(TubePilotApp(languageProvider: languageProvider));
+
+  // Fire-and-forget: runs in the background while the (already-visible)
+  // Dart SplashScreen is up. Same calls, same try/catch, same behavior —
+  // only WHEN they run has changed, not WHAT they do.
+  _initBackgroundServices();
+}
+
+Future<void> _initBackgroundServices() async {
   try {
     await Firebase.initializeApp().timeout(
       const Duration(seconds: 8),
@@ -38,35 +55,18 @@ void main() async {
   } catch (e) {
     debugPrint('⚠️ OneSignal init failed/skipped, continuing without diamond-alert push: $e');
   }
-
-  runApp(const TubePilotApp());
 }
 
 class TubePilotApp extends StatefulWidget {
-  const TubePilotApp({super.key});
+  final LanguageProvider languageProvider;
+  const TubePilotApp({super.key, required this.languageProvider});
   @override
   State<TubePilotApp> createState() => _TubePilotAppState();
 }
 
 class _TubePilotAppState extends State<TubePilotApp> {
   StreamSubscription<Uri>? _linkSub;
-  final LanguageProvider _languageProvider = LanguageProvider();
 
-  // ⚠️ FIX (notifications never arriving): AuthProvider used to be built
-  // inline via `ChangeNotifierProvider(create: (_) => AuthProvider())`,
-  // which meant nothing outside the widget tree could ever see when a user
-  // became logged in. PushService.initAfterLogin() — the method that
-  // actually registers this device's FCM token with the backend — existed
-  // in the codebase but was NEVER CALLED from anywhere. That's the whole
-  // bug: the backend had zero device tokens on file, so every
-  // sendPushToUser() call (Drive video going public, payment confirmed,
-  // etc.) silently had nothing to send to.
-  //
-  // Fix: keep our own reference to AuthProvider (like _languageProvider
-  // above), listen for it to report a logged-in user, and call
-  // PushService.initAfterLogin() at that point. This covers BOTH a fresh
-  // login/signup (auth.user flips null -> a value) and an already-logged-
-  // in user simply reopening the app (checked once immediately below).
   final AuthProvider _authProvider = AuthProvider();
   bool _pushInitDone = false;
 
@@ -77,7 +77,6 @@ class _TubePilotAppState extends State<TubePilotApp> {
     super.initState();
     _initDeepLinks();
     _initOneSignalPlayerIdSync();
-    _languageProvider.loadSaved();
 
     _authProvider.addListener(_maybeInitPush);
     _maybeInitPush(); // covers "already logged in, app just reopened"
@@ -86,9 +85,6 @@ class _TubePilotAppState extends State<TubePilotApp> {
   void _maybeInitPush() {
     final isLoggedIn = _authProvider.user != null;
     if (!isLoggedIn) {
-      // Reset so switching accounts on the same device (logout -> a
-      // different login) re-registers the token under the new user
-      // instead of silently staying registered to nobody.
       _pushInitDone = false;
       return;
     }
@@ -175,7 +171,7 @@ class _TubePilotAppState extends State<TubePilotApp> {
   void dispose() {
     _linkSub?.cancel();
     _authProvider.removeListener(_maybeInitPush);
-    _languageProvider.dispose();
+    widget.languageProvider.dispose();
     super.dispose();
   }
 
@@ -184,17 +180,13 @@ class _TubePilotAppState extends State<TubePilotApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        // Was `ChangeNotifierProvider(create: (_) => AuthProvider())` —
-        // switched to `.value` so this widget can hold and listen to the
-        // SAME instance (see _maybeInitPush above) instead of Provider
-        // creating a second, unreachable one internally.
         ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
-        ChangeNotifierProvider<LanguageProvider>.value(value: _languageProvider),
+        ChangeNotifierProvider<LanguageProvider>.value(value: widget.languageProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return LanguageScope(
-            languageProvider: _languageProvider,
+            languageProvider: widget.languageProvider,
             child: MaterialApp(
               navigatorKey: navigatorKey,
               title: 'TubePilot',

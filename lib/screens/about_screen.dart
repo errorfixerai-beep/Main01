@@ -31,10 +31,10 @@ class AboutScreen extends StatelessWidget {
     _Step(number: '3', titleKey: 'step_relax_title', descKey: 'step_relax_desc'),
   ];
 
+  // ⚠️ FIX (Boss request: hide Facebook & Instagram): only YouTube remains
+  // in the Supported Platforms list.
   static const _platforms = [
     _Platform(name: 'YouTube', descKey: 'platform_youtube_desc'),
-    _Platform(name: 'Facebook', descKey: 'platform_facebook_desc'),
-    _Platform(name: 'Instagram', descKey: 'platform_instagram_desc'),
   ];
 
   // ---------------- Our Story ----------------
@@ -470,8 +470,8 @@ class _PlatformRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Platform brand name (YouTube/Facebook/Instagram) — proper
-              // noun, kept literal; only the description is translated.
+              // Platform brand name (YouTube) — proper noun, kept literal;
+              // only the description is translated.
               Text(platform.name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(context.tr(platform.descKey), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.4)),

@@ -151,7 +151,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 Text(amount, style: TextStyle(fontWeight: FontWeight.w700, color: isSpend ? AppColors.red : AppColors.green)),
                 const SizedBox(height: 4),
                 isRefund
-                    ? const AppBadge(label: 'Auto-Refunded', color: AppColors.green)
+                    ? AppBadge(label: context.tr('auto_refunded_badge'), color: AppColors.green)
                     : AppBadge(label: statusLabel, color: color),
               ]),
             ],

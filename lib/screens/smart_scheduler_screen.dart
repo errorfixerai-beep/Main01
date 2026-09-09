@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 
 /// Screen 4/7.
@@ -26,7 +27,6 @@ class SmartSchedulerScreen extends StatefulWidget {
 }
 
 class _SmartSchedulerScreenState extends State<SmartSchedulerScreen> {
-  static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   // General best-practice engagement windows per weekday (0=low .. 3=peak),
   // sourced from common platform posting-time guidance, NOT this specific
   // channel's real analytics.
@@ -50,6 +50,19 @@ class _SmartSchedulerScreenState extends State<SmartSchedulerScreen> {
     super.initState();
     _load();
   }
+
+  // Localized day abbreviations — pulled at build/use time via context.tr()
+  // instead of a static const list, since the label needs to change live
+  // when the user switches language.
+  List<String> _days(BuildContext context) => [
+        context.tr('day_mon'),
+        context.tr('day_tue'),
+        context.tr('day_wed'),
+        context.tr('day_thu'),
+        context.tr('day_fri'),
+        context.tr('day_sat'),
+        context.tr('day_sun'),
+      ];
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -97,17 +110,18 @@ class _SmartSchedulerScreenState extends State<SmartSchedulerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final days = _days(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Smart Scheduler')),
+      appBar: AppBar(title: Text(context.tr('smart_scheduler_title'))),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text('Audience Peak Activity', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            Text(context.tr('audience_peak_activity'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            Text('General best-practice posting windows (not personalized to your channel yet)', style: TextStyle(color: context.surfaces.textDim, fontSize: 11)),
+            Text(context.tr('audience_peak_subtitle'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11)),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(14),
@@ -123,7 +137,15 @@ class _SmartSchedulerScreenState extends State<SmartSchedulerScreen> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Row(children: [
-                        SizedBox(width: 32, child: Text(_days[row], style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+                        SizedBox(
+                          width: 32,
+                          child: Text(
+                            days[row],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                        ),
                         ...List.generate(8, (col) {
                           return Expanded(
                             child: Padding(
@@ -150,20 +172,20 @@ class _SmartSchedulerScreenState extends State<SmartSchedulerScreen> {
                 value: _autoSlotting,
                 onChanged: (v) => setState(() => _autoSlotting = v),
                 activeTrackColor: AppColors.purple,
-                title: const Text('Auto-Slotting', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                title: Text(context.tr('auto_slotting_title'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 subtitle: Text(
-                  'The 1-hour minimum buffer and your daily post limit are always enforced by the server — this just controls whether Bulk Upload auto-picks slots for you.',
+                  context.tr('auto_slotting_subtitle'),
                   style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5),
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            Text('Preview Queue', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            Text(context.tr('preview_queue'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: LoadingView())
             else if (_queued.isEmpty)
-              const EmptyView(message: 'Nothing queued right now.', icon: Icons.event_note_rounded)
+              EmptyView(message: context.tr('queue_empty'), icon: Icons.event_note_rounded)
             else
               ..._queued.map((v) {
                 final when = _earliestScheduledAt(v);
@@ -174,7 +196,7 @@ class _SmartSchedulerScreenState extends State<SmartSchedulerScreen> {
                   child: Row(children: [
                     const Icon(Icons.schedule_rounded, size: 18, color: AppColors.purple),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(v['title'] ?? '(untitled)', overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5))),
+                    Expanded(child: Text(v['title'] ?? context.tr('untitled_video'), overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5))),
                     if (when != null) Text(when, style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
                   ]),
                 );

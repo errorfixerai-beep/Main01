@@ -271,57 +271,63 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
                   style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.4),
                 ),
                 const SizedBox(height: 14),
-                // ⚠️ UPDATE: package cards moved from a full-width vertical
-                // list to a horizontally scrollable row of cards — same
-                // data, same _buy()/_payingDiamonds logic per card, just a
-                // different layout so more packages are scannable without
-                // a long vertical scroll.
-                SizedBox(
-                  height: 188,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: packages.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      final p = packages[index];
-                      final diamonds = p['diamonds'] as int;
-                      final isPaying = _payingDiamonds == diamonds;
-                      return Container(
-                        width: 148,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(14)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('💎', style: TextStyle(fontSize: 28)),
-                            const SizedBox(height: 8),
-                            Text(
-                              context.tr('diamonds_suffix').replaceAll('%d', '$diamonds'),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 4),
-                            Text('₹${p['priceINR']}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _payingDiamonds != null ? null : () => _buy(diamonds),
-                                child: isPaying
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : Text(context.tr('buy_btn')),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                // ⚠️ UPDATE (Boss request): changed from a single-row
+                // horizontal scroll (which only showed 2 cards on screen at
+                // once, e.g. 10 & 50, with 100 & 200 hidden off to the
+                // side needing a swipe) to a 2-COLUMN GRID. Same card
+                // template, same _buy()/_payingDiamonds logic per card —
+                // only the layout changed, so ALL packages the backend
+                // sends (10, 50, 100, 200, or any future ones) are visible
+                // at once without scrolling sideways: 10 & 50 in the first
+                // row, 100 & 200 in the second row, etc.
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: packages.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.79,
                   ),
+                  itemBuilder: (context, index) {
+                    final p = packages[index];
+                    final diamonds = p['diamonds'] as int;
+                    final isPaying = _payingDiamonds == diamonds;
+                    return Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(14)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('💎', style: TextStyle(fontSize: 28)),
+                          const SizedBox(height: 8),
+                          Text(
+                            context.tr('diamonds_suffix').replaceAll('%d', '$diamonds'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text('₹${p['priceINR']}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _payingDiamonds != null ? null : () => _buy(diamonds),
+                              child: isPaying
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Text(context.tr('buy_btn')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
                 // ⚠️ REMOVED (Boss request): "Have a Gift Code? Redeem it

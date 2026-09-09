@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/brand_icons.dart';
 import '../widgets/custom_dropdown.dart';
@@ -53,7 +54,16 @@ class _UploadScreenState extends State<UploadScreen> {
   // 50-100 video bulk flow.
   final List<_VideoItem> videos = [];
 
-  final Set<String> selectedPlatforms = {};
+  // ⚠️ FIX (Boss request — "abhi hamara sirf YouTube hi hai"): the
+  // Facebook/Instagram business verification is still pending and only
+  // YouTube has launched, so there is no real choice to present to the
+  // user anymore. selectedPlatforms is now ALWAYS {'youtube'} from the
+  // moment this screen opens — no manual platform-selector icon is shown
+  // (see build() below), so every upload automatically targets YouTube.
+  // The Set is kept (rather than a single String) so the rest of the file
+  // — _videoCard(), _submit(), the bulk-upload item builder — didn't need
+  // to change; they all still just check `selectedPlatforms.contains(...)`.
+  final Set<String> selectedPlatforms = {'youtube'};
 
   // Connection status, loaded once on init (from /dashboard + /meta/status +
   // /youtube/channel — reusing existing endpoints, no new ones needed here).
@@ -75,14 +85,35 @@ class _UploadScreenState extends State<UploadScreen> {
   // not through the per-video bulk list, since it needs already-hosted
   // image URLs rather than a single video file.
   String postType = 'reel';
-  final postTypeLabels = const {'reel': 'Reel', 'video': 'Normal Video', 'post': 'Shorts'};
 
-  final categories = const {
-    '22': 'People & Blogs', '27': 'Education', '28': 'Science & Technology',
-    '20': 'Gaming', '24': 'Entertainment', '10': 'Music', '26': 'Howto & Style',
-  };
-  final audienceLabels = const {'not_for_kids': 'Not made for kids', 'made_for_kids': 'Made for kids'};
-  final privacyLabels = const {'unlisted': 'Unlisted', 'public': 'Public', 'private': 'Private'};
+  // Internal (non-translated) keys — the display label is looked up via
+  // context.tr() in these helpers below, but the KEY stored in state (and
+  // sent to the backend) always stays a stable English/code identifier
+  // regardless of the selected app language.
+  Map<String, String> _postTypeLabels(BuildContext c) => {
+        'reel': c.tr('up_posttype_reel'),
+        'video': c.tr('up_posttype_video'),
+        'post': c.tr('up_posttype_post'),
+      };
+
+  Map<String, String> _categories(BuildContext c) => {
+        '22': c.tr('up_cat_people_blogs'),
+        '27': c.tr('up_cat_education'),
+        '28': c.tr('up_cat_science_tech'),
+        '20': c.tr('up_cat_gaming'),
+        '24': c.tr('up_cat_entertainment'),
+        '10': c.tr('up_cat_music'),
+        '26': c.tr('up_cat_howto_style'),
+      };
+  Map<String, String> _audienceLabels(BuildContext c) => {
+        'not_for_kids': c.tr('up_audience_not_kids'),
+        'made_for_kids': c.tr('up_audience_made_kids'),
+      };
+  Map<String, String> _privacyLabels(BuildContext c) => {
+        'unlisted': c.tr('up_privacy_unlisted'),
+        'public': c.tr('up_privacy_public'),
+        'private': c.tr('up_privacy_private'),
+      };
 
   // ---------------- Scheduling ----------------
   // One publish time for the whole batch, across every platform — no
@@ -175,20 +206,6 @@ class _UploadScreenState extends State<UploadScreen> {
     });
   }
 
-  void _togglePlatform(String platform, bool connected) {
-    if (!connected) {
-      showToast(context, 'Connect this account from your Profile first', isError: true);
-      return;
-    }
-    setState(() {
-      if (selectedPlatforms.contains(platform)) {
-        selectedPlatforms.remove(platform);
-      } else {
-        selectedPlatforms.add(platform);
-      }
-    });
-  }
-
   // ---------------- Shared pickers (same pattern as before) ----------------
   Future<String?> _showOptionPicker({required String title, required Map<String, String> options, required String current}) {
     return showModalBottomSheet<String>(
@@ -257,7 +274,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   decoration: BoxDecoration(color: context.surfaces.border, borderRadius: BorderRadius.circular(999)),
                 ),
               ),
-              const Text('Select Time', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(context.tr('up_select_time_title'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               SizedBox(
                 height: 216,
                 child: CupertinoDatePicker(
@@ -271,7 +288,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
                 child: SizedBox(
                   width: double.infinity,
-                  child: GradientButton(label: 'Confirm', onPressed: () => Navigator.pop(sheetContext, selected)),
+                  child: GradientButton(label: context.tr('up_confirm_btn'), onPressed: () => Navigator.pop(sheetContext, selected)),
                 ),
               ),
             ],
@@ -303,7 +320,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
     if (picked.isBefore(earliestAllowed)) {
       if (mounted) {
-        showToast(context, 'Scheduled time must be at least 1 hour from now.', isError: true);
+        showToast(context, context.tr('up_schedule_buffer_error'), isError: true);
       }
       return current;
     }
@@ -316,11 +333,11 @@ class _UploadScreenState extends State<UploadScreen> {
     return showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('What is this video about?'),
-        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: 'e.g. AI tools for productivity')),
+        title: Text(context.tr('up_topic_dialog_title')),
+        content: TextField(controller: ctrl, decoration: InputDecoration(hintText: context.tr('up_topic_hint'))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()), child: const Text('Generate')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.tr('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()), child: Text(context.tr('up_generate_btn'))),
         ],
       ),
     );
@@ -331,7 +348,7 @@ class _UploadScreenState extends State<UploadScreen> {
     final topic = await _promptTopic(item.ytTitleCtrl);
     if (topic == null || topic.isEmpty) return;
     try {
-      showToast(context, 'Generating with AI...');
+      showToast(context, context.tr('up_ai_generating_toast'));
       if (field == 'title') {
         final res = await ApiService.instance.aiTitle(topic);
         item.ytTitleCtrl.text = res['title'] ?? '';
@@ -342,7 +359,7 @@ class _UploadScreenState extends State<UploadScreen> {
         final res = await ApiService.instance.aiTags(topic);
         item.ytTagsCtrl.text = (res['tags'] as List).join(', ');
       }
-      if (mounted) showToast(context, 'AI content generated ✨', isSuccess: true);
+      if (mounted) showToast(context, context.tr('up_ai_content_generated'), isSuccess: true);
     } catch (e) {
       if (mounted) showAiError(context, e);
     }
@@ -352,10 +369,10 @@ class _UploadScreenState extends State<UploadScreen> {
     final topic = await _promptTopic(item.fbCaptionCtrl);
     if (topic == null || topic.isEmpty) return;
     try {
-      showToast(context, 'Generating with AI...');
+      showToast(context, context.tr('up_ai_generating_toast'));
       final res = await ApiService.instance.aiCaption(topic, 'facebook');
       item.fbCaptionCtrl.text = res['caption'] ?? '';
-      if (mounted) showToast(context, 'AI caption generated ✨', isSuccess: true);
+      if (mounted) showToast(context, context.tr('up_ai_caption_generated'), isSuccess: true);
     } catch (e) {
       if (mounted) showAiError(context, e);
     }
@@ -365,10 +382,10 @@ class _UploadScreenState extends State<UploadScreen> {
     final topic = await _promptTopic(item.fbCaptionCtrl);
     if (topic == null || topic.isEmpty) return;
     try {
-      showToast(context, 'Generating with AI...');
+      showToast(context, context.tr('up_ai_generating_toast'));
       final res = await ApiService.instance.aiHashtags(topic, 'facebook');
       item.fbHashtagsCtrl.text = (res['hashtags'] as List).join(', ');
-      if (mounted) showToast(context, 'AI hashtags generated ✨', isSuccess: true);
+      if (mounted) showToast(context, context.tr('up_ai_hashtags_generated'), isSuccess: true);
     } catch (e) {
       if (mounted) showAiError(context, e);
     }
@@ -378,10 +395,10 @@ class _UploadScreenState extends State<UploadScreen> {
     final topic = await _promptTopic(item.igCaptionCtrl);
     if (topic == null || topic.isEmpty) return;
     try {
-      showToast(context, 'Generating with AI...');
+      showToast(context, context.tr('up_ai_generating_toast'));
       final res = await ApiService.instance.aiCaption(topic, 'instagram');
       item.igCaptionCtrl.text = res['caption'] ?? '';
-      if (mounted) showToast(context, 'AI caption generated ✨', isSuccess: true);
+      if (mounted) showToast(context, context.tr('up_ai_caption_generated'), isSuccess: true);
     } catch (e) {
       if (mounted) showAiError(context, e);
     }
@@ -391,10 +408,10 @@ class _UploadScreenState extends State<UploadScreen> {
     final topic = await _promptTopic(item.igCaptionCtrl);
     if (topic == null || topic.isEmpty) return;
     try {
-      showToast(context, 'Generating with AI...');
+      showToast(context, context.tr('up_ai_generating_toast'));
       final res = await ApiService.instance.aiHashtags(topic, 'instagram');
       item.igHashtagsCtrl.text = (res['hashtags'] as List).join(', ');
-      if (mounted) showToast(context, 'AI hashtags generated ✨', isSuccess: true);
+      if (mounted) showToast(context, context.tr('up_ai_hashtags_generated'), isSuccess: true);
     } catch (e) {
       if (mounted) showAiError(context, e);
     }
@@ -416,31 +433,34 @@ class _UploadScreenState extends State<UploadScreen> {
     final availableCredits = freeUploadsRemaining + (diamondBalance ~/ _diamondCostPerUpload);
 
     if (availableCredits < count) {
-      showToast(
-        context,
-        'You have credits for $availableCredits upload(s), but $count video(s) selected. Buy more diamonds or remove some videos.',
-        isError: true,
-      );
+      var msg = context.tr('up_insufficient_credits');
+      msg = msg.replaceFirst('%d', '$availableCredits');
+      msg = msg.replaceFirst('%d', '$count');
+      showToast(context, msg, isError: true);
       return false;
     }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Upload Cost'),
+        title: Text(context.tr('up_confirm_cost_title')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$count video${count > 1 ? 's' : ''} will be queued.'),
+            Text(context.tr('up_videos_will_queue').replaceFirst('%d', '$count')),
             const SizedBox(height: 10),
-            if (usedFree > 0) Text('• $usedFree free upload${usedFree > 1 ? 's' : ''}'),
-            if (diamondsNeeded > 0) Text('• 💎 $diamondsNeeded diamonds (balance: $diamondBalance)'),
+            if (usedFree > 0) Text(context.tr('up_free_uploads_used').replaceFirst('%d', '$usedFree')),
+            if (diamondsNeeded > 0)
+              Text(context
+                  .tr('up_diamonds_needed')
+                  .replaceFirst('%d', '$diamondsNeeded')
+                  .replaceFirst('%d', '$diamondBalance')),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.tr('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(context.tr('up_confirm_btn'))),
         ],
       ),
     );
@@ -461,16 +481,16 @@ class _UploadScreenState extends State<UploadScreen> {
   // ---------------- Submit (single video -> /videos/upload, batch -> /videos/bulk-upload) ----------------
   // ---------------- Reset to initial state after a successful publish ----------------
   // Per spec: instead of leaving the screen, clear everything (videos,
-  // titles/hashtags/captions, thumbnails, selected platforms, schedule)
-  // and land back on the empty "Tap to select videos" state, ready for
-  // another upload without re-navigating.
+  // titles/hashtags/captions, thumbnails, schedule) and land back on the
+  // empty "Tap to select videos" state, ready for another upload without
+  // re-navigating. selectedPlatforms is intentionally NOT cleared here —
+  // it always stays {'youtube'} since that's the only launched platform.
   void _resetForm() {
     for (final v in videos) {
       v.dispose();
     }
     setState(() {
       videos.clear();
-      selectedPlatforms.clear();
       scheduleEnabled = true;
       scheduledAt = null;
       postType = 'reel';
@@ -484,22 +504,22 @@ class _UploadScreenState extends State<UploadScreen> {
 
   Future<void> _submit() async {
     if (videos.isEmpty) {
-      showToast(context, 'Please select at least one video first', isError: true);
+      showToast(context, context.tr('up_select_video_error'), isError: true);
       return;
     }
     if (selectedPlatforms.isEmpty) {
-      showToast(context, 'Select at least one platform to publish to', isError: true);
+      showToast(context, context.tr('up_select_platform_error'), isError: true);
       return;
     }
     if (selectedPlatforms.contains('youtube')) {
       final missingTitle = videos.any((v) => v.ytTitleCtrl.text.trim().isEmpty);
       if (missingTitle) {
-        showToast(context, 'Every video needs a YouTube title', isError: true);
+        showToast(context, context.tr('up_youtube_title_required'), isError: true);
         return;
       }
     }
     if (scheduleEnabled && scheduledAt == null) {
-      showToast(context, 'Pick a schedule date & time, or turn scheduling off', isError: true);
+      showToast(context, context.tr('up_pick_schedule_error'), isError: true);
       return;
     }
 
@@ -550,7 +570,7 @@ class _UploadScreenState extends State<UploadScreen> {
         setState(() => uploadedCount = 1);
 
         if (!mounted) return;
-        showToast(context, 'Video queued for publishing!', isSuccess: true);
+        showToast(context, context.tr('up_video_queued_success'), isSuccess: true);
         _resetForm();
       } else {
         // -------- Bulk: /videos/bulk-upload — backend auto-slots across
@@ -593,14 +613,24 @@ class _UploadScreenState extends State<UploadScreen> {
 
         if (!mounted) return;
         if (successCount == videos.length) {
-          showToast(context, res['message'] ?? '$successCount videos scheduled!', isSuccess: true);
+          showToast(context, res['message'] ?? context.tr('up_videos_scheduled_success').replaceFirst('%d', '$successCount'), isSuccess: true);
           _resetForm();
         } else {
-          showToast(context, '$successCount/${videos.length} scheduled — ${videos.length - successCount} failed', isError: true);
+          var msg = context.tr('up_partial_scheduled');
+          msg = msg.replaceFirst('%d', '$successCount');
+          msg = msg.replaceFirst('%d', '${videos.length}');
+          msg = msg.replaceFirst('%d', '${videos.length - successCount}');
+          showToast(context, msg, isError: true);
         }
       }
     } catch (e) {
-      if (mounted) showApiError(context, e);
+      // ⚠️ FIX (Boss request): was showApiError() before — showed the
+      // raw backend text even when the failure was an insufficient-
+      // diamond shortfall. showUploadError() shows the same clear
+      // upgrade prompt as the AI-generate buttons for that one case,
+      // while still showing the backend's own message for any other
+      // upload failure (see common.dart for the shared detection logic).
+      if (mounted) showUploadError(context, e);
     } finally {
       if (mounted) setState(() => uploading = false);
     }
@@ -613,71 +643,6 @@ class _UploadScreenState extends State<UploadScreen> {
   // in this file didn't need to be touched individually.
   Widget _pickerField({required String value, required VoidCallback onTap, bool isPlaceholder = false}) {
     return PickerField(value: value, onTap: onTap, isPlaceholder: isPlaceholder);
-  }
-
-  /// Platform selector card — YouTube and Facebook rendered side-by-side
-  /// (parallel row) with real brand-logo widgets instead of emoji. Tapping
-  /// toggles that platform's per-video fields open below.
-  // Redesigned per the "clean platform selector" spec: circular, logo-only
-  // tiles — no label text, no "Tap to connect"/"Connected" sub-text. A
-  // small dot badge (not text) still shows connection status, since
-  // silently dropping that signal entirely would make an unconnected
-  // platform indistinguishable from a connected-but-unselected one.
-  Widget _platformCard({
-    required String platform,
-    required String label,
-    required Widget logo,
-    required bool connected,
-  }) {
-    final selected = selectedPlatforms.contains(platform);
-    return Expanded(
-      child: Tooltip(
-        message: connected ? '$label — Connected' : '$label — tap to connect',
-        child: GestureDetector(
-          onTap: () => _togglePlatform(platform, connected),
-          child: Column(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: selected ? AppColors.purple.withValues(alpha: 0.14) : context.surfaces.card2,
-                  border: Border.all(color: selected ? AppColors.purple : context.surfaces.border, width: selected ? 2 : 1),
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    logo,
-                    if (selected)
-                      const Positioned(
-                        bottom: -2,
-                        right: -2,
-                        child: Icon(Icons.check_circle, color: AppColors.purple, size: 16),
-                      ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Container(
-                        width: 9,
-                        height: 9,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: connected ? AppColors.green : context.surfaces.textDim.withValues(alpha: 0.5),
-                          border: Border.all(color: Theme.of(context).colorScheme.surface, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _sectionCard({required String title, required Widget titleLeading, required List<Widget> children}) {
@@ -710,7 +675,7 @@ class _UploadScreenState extends State<UploadScreen> {
           if (onAiTap != null)
             GestureDetector(
               onTap: onAiTap,
-              child: const Text('✨ AI Generate (2💎)', style: TextStyle(color: AppColors.purpleLight, fontSize: 12, fontWeight: FontWeight.w600)),
+              child: Text(context.tr('up_ai_generate_label'), style: const TextStyle(color: AppColors.purpleLight, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -734,7 +699,7 @@ class _UploadScreenState extends State<UploadScreen> {
               decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.movie_outlined, size: 20),
             ),
-            title: Text('Video ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+            title: Text(context.tr('up_video_number').replaceFirst('%d', '${index + 1}'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
             subtitle: Text(item.file.path.split('/').last, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5)),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -754,14 +719,14 @@ class _UploadScreenState extends State<UploadScreen> {
                     Row(children: [
                       const YoutubeIcon(size: 15),
                       const SizedBox(width: 6),
-                      Text('YouTube', style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+                      Text(context.tr('up_youtube_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
                     ]),
-                    _fieldLabel('Title', onAiTap: () => _generateYoutube(item, 'title')),
-                    TextField(controller: item.ytTitleCtrl, maxLength: 100, decoration: const InputDecoration(hintText: 'e.g. 10 AI Tools That Will Blow Your Mind')),
-                    _fieldLabel('Description', onAiTap: () => _generateYoutube(item, 'description')),
-                    TextField(controller: item.ytDescCtrl, maxLines: 3, maxLength: 5000, decoration: const InputDecoration(hintText: "In this video, I'll show you...")),
-                    _fieldLabel('Tags / #hashtags', onAiTap: () => _generateYoutube(item, 'tags')),
-                    TextField(controller: item.ytTagsCtrl, decoration: const InputDecoration(hintText: '#ai, #tools, #tutorial')),
+                    _fieldLabel(context.tr('up_title_label'), onAiTap: () => _generateYoutube(item, 'title')),
+                    TextField(controller: item.ytTitleCtrl, maxLength: 100, decoration: InputDecoration(hintText: context.tr('up_title_hint'))),
+                    _fieldLabel(context.tr('up_description_label'), onAiTap: () => _generateYoutube(item, 'description')),
+                    TextField(controller: item.ytDescCtrl, maxLines: 3, maxLength: 5000, decoration: InputDecoration(hintText: context.tr('up_description_hint'))),
+                    _fieldLabel(context.tr('up_tags_label'), onAiTap: () => _generateYoutube(item, 'tags')),
+                    TextField(controller: item.ytTagsCtrl, decoration: InputDecoration(hintText: context.tr('up_tags_hint'))),
                     const SizedBox(height: 10),
                     GestureDetector(
                       onTap: () => _pickThumbnail(item),
@@ -774,33 +739,45 @@ class _UploadScreenState extends State<UploadScreen> {
                               : ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(item.thumbFile!, fit: BoxFit.cover)),
                         ),
                         const SizedBox(width: 10),
-                        Expanded(child: Text('Custom thumbnail (optional)', style: TextStyle(color: context.surfaces.textDim, fontSize: 12))),
+                        Expanded(child: Text(context.tr('up_custom_thumbnail'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12))),
                       ]),
                     ),
                   ],
+                  // ⚠️ HIDDEN (Boss request — "Facebook/Instagram verification
+                  // pending, YouTube verification complete hai, sirf YouTube
+                  // launch kar rahe hain"): these Facebook/Instagram per-video
+                  // field blocks are UNCHANGED and still work exactly as
+                  // before — they are simply unreachable right now because
+                  // `selectedPlatforms` can never contain 'facebook' or
+                  // 'instagram' anymore (it's hard-coded to {'youtube'}
+                  // above, and the manual platform-selector UI that used to
+                  // let the user add them was removed from build() below).
+                  // Nothing here needs to be touched again once FB/IG
+                  // verification completes — just restore the selector UI
+                  // and these blocks light back up immediately.
                   if (selectedPlatforms.contains('facebook')) ...[
                     if (selectedPlatforms.contains('youtube')) const SizedBox(height: 16),
                     Row(children: [
                       const FacebookIcon(size: 15),
                       const SizedBox(width: 6),
-                      Text('Facebook Reels', style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+                      Text(context.tr('up_facebook_reels_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
                     ]),
-                    _fieldLabel('Caption', onAiTap: () => _generateCaption(item)),
-                    TextField(controller: item.fbCaptionCtrl, maxLines: 3, decoration: const InputDecoration(hintText: 'Write a caption...')),
-                    _fieldLabel('Hashtags', onAiTap: () => _generateHashtags(item)),
-                    TextField(controller: item.fbHashtagsCtrl, decoration: const InputDecoration(hintText: '#reels, #trending')),
+                    _fieldLabel(context.tr('up_caption_label'), onAiTap: () => _generateCaption(item)),
+                    TextField(controller: item.fbCaptionCtrl, maxLines: 3, decoration: InputDecoration(hintText: context.tr('up_caption_hint'))),
+                    _fieldLabel(context.tr('up_hashtags_label'), onAiTap: () => _generateHashtags(item)),
+                    TextField(controller: item.fbHashtagsCtrl, decoration: InputDecoration(hintText: context.tr('up_hashtags_hint'))),
                   ],
                   if (selectedPlatforms.contains('instagram')) ...[
                     if (selectedPlatforms.contains('youtube') || selectedPlatforms.contains('facebook')) const SizedBox(height: 16),
                     Row(children: [
                       const InstagramIcon(size: 15),
                       const SizedBox(width: 6),
-                      Text('Instagram', style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+                      Text(context.tr('instagram_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
                     ]),
-                    _fieldLabel('Caption', onAiTap: () => _generateInstagramCaption(item)),
-                    TextField(controller: item.igCaptionCtrl, maxLines: 3, decoration: const InputDecoration(hintText: 'Write a caption...')),
-                    _fieldLabel('Hashtags', onAiTap: () => _generateInstagramHashtags(item)),
-                    TextField(controller: item.igHashtagsCtrl, decoration: const InputDecoration(hintText: '#reels, #trending')),
+                    _fieldLabel(context.tr('up_caption_label'), onAiTap: () => _generateInstagramCaption(item)),
+                    TextField(controller: item.igCaptionCtrl, maxLines: 3, decoration: InputDecoration(hintText: context.tr('up_caption_hint'))),
+                    _fieldLabel(context.tr('up_hashtags_label'), onAiTap: () => _generateInstagramHashtags(item)),
+                    TextField(controller: item.igHashtagsCtrl, decoration: InputDecoration(hintText: context.tr('up_hashtags_hint'))),
                   ],
                 ],
               ),
@@ -812,13 +789,25 @@ class _UploadScreenState extends State<UploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final costLabel = freeUploadsRemaining > 0
-        ? '💎 Free Upload ($freeUploadsRemaining left, ${videos.length} queued)'
-        : '💎 ${videos.length * 10} Diamonds (Balance: $diamondBalance)';
+    final categories = _categories(context);
+    final audienceLabels = _audienceLabels(context);
+    final privacyLabels = _privacyLabels(context);
+    final postTypeLabels = _postTypeLabels(context);
+
+    String costLabel;
+    if (freeUploadsRemaining > 0) {
+      costLabel = context.tr('up_free_upload_cost');
+      costLabel = costLabel.replaceFirst('%d', '$freeUploadsRemaining');
+      costLabel = costLabel.replaceFirst('%d', '${videos.length}');
+    } else {
+      costLabel = context.tr('up_diamond_cost');
+      costLabel = costLabel.replaceFirst('%d', '${videos.length * 10}');
+      costLabel = costLabel.replaceFirst('%d', '$diamondBalance');
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Upload Video'),
+        title: Text(context.tr('up_title')),
         actions: [
           // "Bulk" now lives in the header (top-right) instead of a
           // "+ Add more" text button inside the body — same action
@@ -828,7 +817,7 @@ class _UploadScreenState extends State<UploadScreen> {
             child: TextButton.icon(
               onPressed: videos.length >= 100 ? null : _pickMoreVideos,
               icon: const Icon(Icons.layers_rounded, size: 18),
-              label: const Text('Bulk'),
+              label: Text(context.tr('up_bulk_btn')),
             ),
           ),
         ],
@@ -847,46 +836,42 @@ class _UploadScreenState extends State<UploadScreen> {
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
                       child: Column(children: [
-                        // ⚠️ HD icon fix: replaced the blurry 🎬 emoji
-                        // placeholder with a real Material vector icon.
                         const Icon(Icons.video_library_rounded, size: 34, color: AppColors.purple),
                         const SizedBox(height: 8),
-                        const Text('Tap to select videos', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(context.tr('up_tap_to_select'), style: const TextStyle(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 4),
-                        Text('Select one, or use Bulk (top right) — up to 100', style: TextStyle(color: context.surfaces.textDim, fontSize: 12), textAlign: TextAlign.center),
+                        Text(context.tr('up_select_hint'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12), textAlign: TextAlign.center),
                         const SizedBox(height: 2),
-                        Text('MP4, MOV, MKV up to 2GB each', style: TextStyle(color: context.surfaces.textDim, fontSize: 11)),
+                        Text(context.tr('up_format_hint'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11)),
                       ]),
                     ),
                   )
                 else ...[
-                  Text('${videos.length} video${videos.length > 1 ? 's' : ''} selected', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text(context.tr('up_videos_selected').replaceFirst('%d', '${videos.length}'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                   const SizedBox(height: 10),
                 ],
                 const SizedBox(height: 12),
 
-                // ---------------- Platform selection (side by side) ----------------
-                Text('Publish To', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-                const SizedBox(height: 8),
-                Row(children: [
-                  _platformCard(platform: 'youtube', label: 'YouTube', logo: const YoutubeIcon(size: 22), connected: youtubeConnected),
-                  const SizedBox(width: 12),
-                  _platformCard(platform: 'facebook', label: 'Facebook', logo: const FacebookIcon(size: 22), connected: facebookConnected),
-                  const SizedBox(width: 12),
-                  _platformCard(platform: 'instagram', label: 'Instagram', logo: const InstagramIcon(size: 22), connected: instagramConnected),
-                ]),
-                const SizedBox(height: 20),
+                // ⚠️ REMOVED (Boss request — "sirf YouTube hi hai, icon hata
+                // do, hamesha YouTube hi select ho"): the "Publish To"
+                // platform-selector row (YouTube/Facebook/Instagram circular
+                // icons) has been removed entirely. selectedPlatforms is
+                // hard-coded to {'youtube'} above, so every upload always
+                // targets YouTube automatically with no user action needed.
+                // _platformCard()/_togglePlatform() helper methods were
+                // removed along with it — nothing else in this file depended
+                // on them being visible.
 
                 // ---------------- Media type (Reel / Normal Video / Shorts) ----------------
                 // Auto-detected from the picker (single video -> this
                 // dropdown decides Reel vs Normal vs Shorts); applies to
                 // the whole batch, mirrored across Facebook + Instagram.
                 if (videos.isNotEmpty && (selectedPlatforms.contains('facebook') || selectedPlatforms.contains('instagram')))
-                  _sectionCard(title: 'Media Type', titleLeading: const Icon(Icons.video_settings_rounded, size: 18), children: [
+                  _sectionCard(title: context.tr('up_media_type_title'), titleLeading: const Icon(Icons.video_settings_rounded, size: 18), children: [
                     _pickerField(
-                      value: postTypeLabels[postType] ?? 'Reel',
+                      value: postTypeLabels[postType] ?? postTypeLabels['reel']!,
                       onTap: () async {
-                        final r = await _showOptionPicker(title: 'Media Type', options: postTypeLabels, current: postType);
+                        final r = await _showOptionPicker(title: context.tr('up_media_type_title'), options: postTypeLabels, current: postType);
                         if (r != null) setState(() => postType = r);
                       },
                     ),
@@ -898,37 +883,37 @@ class _UploadScreenState extends State<UploadScreen> {
 
                 // ---------------- Shared YouTube settings (apply to whole batch) ----------------
                 if (selectedPlatforms.contains('youtube') && videos.isNotEmpty)
-                  _sectionCard(title: 'YouTube Settings (applies to all videos)', titleLeading: const YoutubeIcon(size: 18), children: [
-                    Text('Category', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                  _sectionCard(title: context.tr('up_youtube_settings_title'), titleLeading: const YoutubeIcon(size: 18), children: [
+                    Text(context.tr('up_category_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
                     const SizedBox(height: 6),
                     _pickerField(
                       value: categories[ytCategory] ?? '',
                       onTap: () async {
-                        final r = await _showOptionPicker(title: 'Category', options: categories, current: ytCategory);
+                        final r = await _showOptionPicker(title: context.tr('up_category_label'), options: categories, current: ytCategory);
                         if (r != null) setState(() => ytCategory = r);
                       },
                     ),
                     const SizedBox(height: 12),
-                    Text('Playlist (optional)', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                    Text(context.tr('up_playlist_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
                     const SizedBox(height: 6),
-                    TextField(controller: _ytPlaylistCtrl, decoration: const InputDecoration(hintText: 'e.g. AI Tutorials')),
+                    TextField(controller: _ytPlaylistCtrl, decoration: InputDecoration(hintText: context.tr('up_playlist_hint'))),
                     const SizedBox(height: 12),
-                    Text('Audience', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                    Text(context.tr('up_audience_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
                     const SizedBox(height: 6),
                     _pickerField(
                       value: audienceLabels[ytAudience] ?? '',
                       onTap: () async {
-                        final r = await _showOptionPicker(title: 'Audience', options: audienceLabels, current: ytAudience);
+                        final r = await _showOptionPicker(title: context.tr('up_audience_label'), options: audienceLabels, current: ytAudience);
                         if (r != null) setState(() => ytAudience = r);
                       },
                     ),
                     const SizedBox(height: 12),
-                    Text('Privacy', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                    Text(context.tr('up_privacy_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
                     const SizedBox(height: 6),
                     _pickerField(
                       value: privacyLabels[ytPrivacy] ?? '',
                       onTap: () async {
-                        final r = await _showOptionPicker(title: 'Privacy', options: privacyLabels, current: ytPrivacy);
+                        final r = await _showOptionPicker(title: context.tr('up_privacy_label'), options: privacyLabels, current: ytPrivacy);
                         if (r != null) setState(() => ytPrivacy = r);
                       },
                     ),
@@ -946,7 +931,7 @@ class _UploadScreenState extends State<UploadScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Publish Timing', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        Text(context.tr('up_publish_timing_title'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                         const SizedBox(height: 10),
                         // Live / Schedule tab control — Schedule is the
                         // default. Live bypasses the 1-hour minimum buffer
@@ -974,7 +959,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                     children: [
                                       Icon(Icons.bolt_rounded, size: 16, color: !scheduleEnabled ? Colors.white : context.surfaces.textDim),
                                       const SizedBox(width: 6),
-                                      Text('Live', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: !scheduleEnabled ? Colors.white : context.surfaces.textDim)),
+                                      Text(context.tr('up_live_tab'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: !scheduleEnabled ? Colors.white : context.surfaces.textDim)),
                                     ],
                                   ),
                                 ),
@@ -995,7 +980,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                     children: [
                                       Icon(Icons.schedule_rounded, size: 16, color: scheduleEnabled ? Colors.white : context.surfaces.textDim),
                                       const SizedBox(width: 6),
-                                      Text('Schedule', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: scheduleEnabled ? Colors.white : context.surfaces.textDim)),
+                                      Text(context.tr('up_schedule_tab'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: scheduleEnabled ? Colors.white : context.surfaces.textDim)),
                                     ],
                                   ),
                                 ),
@@ -1005,13 +990,13 @@ class _UploadScreenState extends State<UploadScreen> {
                         ),
                         if (!scheduleEnabled) ...[
                           const SizedBox(height: 10),
-                          Text('Live mode — publishes immediately, no 1-hour buffer applied', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+                          Text(context.tr('up_live_mode_note'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
                         ] else ...[
                           const SizedBox(height: 10),
-                          Text('One publish time for the whole batch, across all platforms — must be at least 1 hour from now', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+                          Text(context.tr('up_schedule_note'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
                           const SizedBox(height: 10),
                           _pickerField(
-                            value: scheduledAt == null ? 'Tap to pick date & time' : formatDateTime(scheduledAt!.toIso8601String()),
+                            value: scheduledAt == null ? context.tr('up_pick_datetime') : formatDateTime(scheduledAt!.toIso8601String()),
                             isPlaceholder: scheduledAt == null,
                             onTap: () async {
                               final picked = await _pickDateTime(scheduledAt);
@@ -1028,14 +1013,18 @@ class _UploadScreenState extends State<UploadScreen> {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
                     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Upload Cost', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                      Text(context.tr('up_upload_cost_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
                       AppBadge(label: costLabel, color: AppColors.diamond),
                     ]),
                   ),
                 const SizedBox(height: 20),
                 if (videos.isNotEmpty)
                   GradientButton(
-                    label: uploading ? 'Uploading $uploadedCount / ${videos.length}...' : 'Publish ${videos.length > 1 ? '(${videos.length} videos)' : ''}',
+                    label: uploading
+                        ? context.tr('up_uploading_progress').replaceFirst('%d', '$uploadedCount').replaceFirst('%d', '${videos.length}')
+                        : (videos.length > 1
+                            ? context.tr('up_publish_btn_count').replaceFirst('%d', '${videos.length}')
+                            : context.tr('up_publish_btn')),
                     loading: uploading,
                     onPressed: _submit,
                   ),

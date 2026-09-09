@@ -59,8 +59,8 @@ class LanguageProvider extends ChangeNotifier {
 /// `context.watch<LanguageProvider>().tr('key')` everywhere.
 extension LocalizationExtension on BuildContext {
   String tr(String key) {
-    final provider = dependOnInheritedWidgetOfExactType<_LanguageInherited>();
-    if (provider != null) return provider.languageProvider.tr(key);
+    final scope = this.dependOnInheritedWidgetOfExactType<_LanguageInherited>();
+    if (scope != null) return AppStrings.tr(key, scope.languageCode);
     // Fallback: still works even if used outside the InheritedWidget scope,
     // just won't auto-rebuild on language change in that spot.
     return AppStrings.tr(key, 'en');
@@ -81,7 +81,30 @@ class LanguageScope extends StatelessWidget {
     return AnimatedBuilder(
       animation: languageProvider,
       builder: (context, _) {
-        return _LanguageInherited(languageProvider: languageProvider, child: child);
+        return _LanguageInherited(
+          languageProvider: languageProvider,
+          // ⚠️ FIX (real bug — language change wasn't triggering rebuilds):
+          // previously updateShouldNotify() compared
+          // `oldWidget.languageProvider.languageCode` against
+          // `languageProvider.languageCode`. Both sides read from the SAME
+          // mutable LanguageProvider instance (it's never recreated — see
+          // main.dart), so by the time the comparison ran, both sides
+          // already reflected the NEW language code. The comparison could
+          // never be true, so updateShouldNotify() always returned false,
+          // and every widget that only used context.tr() silently never
+          // rebuilt on a language change — regardless of how many times
+          // the user switched languages.
+          //
+          // Fix: snapshot the language code as a plain String at the
+          // moment this widget is built (below), and have
+          // updateShouldNotify() compare THAT instead of reaching back
+          // into the shared mutable object. Now oldWidget.languageCode is
+          // genuinely the previous value, so the comparison correctly
+          // detects a real change and notifies every dependent context.tr()
+          // call to rebuild immediately.
+          languageCode: languageProvider.languageCode,
+          child: child,
+        );
       },
     );
   }
@@ -89,9 +112,14 @@ class LanguageScope extends StatelessWidget {
 
 class _LanguageInherited extends InheritedWidget {
   final LanguageProvider languageProvider;
-  const _LanguageInherited({required this.languageProvider, required super.child});
+  final String languageCode;
+  const _LanguageInherited({
+    required this.languageProvider,
+    required this.languageCode,
+    required super.child,
+  });
 
   @override
   bool updateShouldNotify(_LanguageInherited oldWidget) =>
-      oldWidget.languageProvider.languageCode != languageProvider.languageCode;
+      oldWidget.languageCode != languageCode;
 }
