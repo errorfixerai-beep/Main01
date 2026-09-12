@@ -118,18 +118,19 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        // ⚠️ FIX (Boss correction — "background mein koi color nahi hona
+        // chahiye, health score ko sahi se colorful dikhao"): dropped the
+        // solid `AppColors.gradient` fill in favour of the same
+        // transparent/bordered look used by every other card on this
+        // screen. The gauge itself now carries the color instead of the
+        // card background.
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(20)),
           child: Column(children: [
-            Text(context.tr('audit_channel_health'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(context.tr('audit_channel_health'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            // ⚠️ FIX (Boss request — "bada sa number nahi, graph"): the
-            // plain "80/100" text is replaced with a donut/gauge chart
-            // (fl_chart PieChart, already a dependency — used elsewhere in
-            // analytics_screen.dart's trend chart), score shown as the
-            // filled arc + number in the center.
             _healthGauge(score, color),
             const SizedBox(height: 4),
             AppBadge(label: _healthLabel(score), color: color),
@@ -164,6 +165,14 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     );
   }
 
+  // ⚠️ FIX (Boss correction — "health score ko sahi se colorful
+  // dikhao"): the filled arc and center number were hardcoded to plain
+  // white/white-alpha (made sense on the old solid-gradient card, not on
+  // a transparent one). Now uses the already-computed `_healthColor`
+  // (green ≥80, purple ≥60, orange ≥35, red below) so the ring and
+  // number both reflect the actual score, and the unfilled remainder of
+  // the ring uses the theme's border color instead of a translucent
+  // white so it reads correctly on a plain background.
   Widget _healthGauge(int score, Color color) {
     return SizedBox(
       height: 150,
@@ -176,16 +185,16 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
               sectionsSpace: 0,
               centerSpaceRadius: 52,
               sections: [
-                PieChartSectionData(value: score.toDouble(), color: Colors.white, radius: 20, showTitle: false),
-                PieChartSectionData(value: (100 - score).toDouble(), color: Colors.white.withValues(alpha: 0.20), radius: 20, showTitle: false),
+                PieChartSectionData(value: score.toDouble(), color: color, radius: 20, showTitle: false),
+                PieChartSectionData(value: (100 - score).toDouble(), color: context.surfaces.border, radius: 20, showTitle: false),
               ],
             ),
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('$score', style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white)),
-              Text('/100', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12.5, fontWeight: FontWeight.w600)),
+              Text('$score', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: color)),
+              Text('/100', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w600)),
             ],
           ),
         ],

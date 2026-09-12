@@ -35,6 +35,22 @@ import '../providers/language_provider.dart';
 //    see the note at the bottom of this file for what needs to change
 //    server-side.
 // 4. Enterprise card upgraded with a feature list + support email.
+//
+// ⚠️ BOSS UPDATE (THIS revision — bottom-overflow fix + facility list):
+// 5. FIX: the 2-column GridView with a fixed childAspectRatio was the
+//    root cause of "BOTTOM OVERFLOWED BY 30/31 PIXELS" — a fixed aspect
+//    ratio gives every card the same locked height regardless of how much
+//    text is inside it, so adding more lines (the new facility checklist
+//    below) would only have made the overflow worse, not better. Switched
+//    from a 2-column GridView to a single-column list of FULL-WIDTH cards
+//    with no fixed height — each card is free to grow as tall as its
+//    content needs (Column with mainAxisSize.min), and the screen's outer
+//    ListView already scrolls, so a taller card just means more scrolling,
+//    never an overflow.
+// 6. Every package card now lists the app-wide AI/creator tools included
+//    with ANY diamond purchase — AI Title Generation, AI Description
+//    Generation, Thumbnail Prompt Copy, SEO/Score Analysis, Competitor
+//    Analysis — not just the generic "Instant credit" line from before.
 class DiamondStoreScreen extends StatefulWidget {
   const DiamondStoreScreen({super.key});
   @override
@@ -291,22 +307,25 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
                     context.tr('diamond_store_description'),
                     style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.4),
                   ),
-                  const SizedBox(height: 14),
-                  // Same 2-column grid layout as before — only the card
-                  // template itself (_packageCard) got richer.
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: packages.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.72,
+                  const SizedBox(height: 16),
+                  // ⚠️ FIX: was a 2-column GridView with a fixed
+                  // childAspectRatio (the actual cause of the pixel
+                  // overflow — a locked-height cell can't grow to fit more
+                  // text). Now a single-column list of full-width cards
+                  // with no fixed height, each wrapped in its own
+                  // SizedBox+margin instead of a grid cell — every card is
+                  // free to be as tall as its content (including the new
+                  // facility checklist) needs, and the screen already
+                  // scrolls (outer ListView), so a taller card just scrolls
+                  // further instead of overflowing.
+                  ...List.generate(
+                    packages.length,
+                    (index) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _packageCard(context, index),
                     ),
-                    itemBuilder: (context, index) => _packageCard(context, index),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 10),
                   _enterpriseCard(),
                 ],
               ),
@@ -314,17 +333,11 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
     );
   }
 
-  // ⚠️ UPGRADED CARD (Boss request — "card ko upgrade karo, text add karo
-  // taki pata chale user ko kya milega"). Same border/color language as
-  // before (context.surfaces.border, same radius) — nothing about the
-  // app's color scheme changed, only more information is shown:
-  //   • a badge ("Popular" on the 2nd cheapest pack, "Best Value" on the
-  //     priciest pack — a common, easy-to-scan pattern) when there are
-  //     enough packages for it to make sense
-  //   • the diamond amount + price (as before)
-  //   • a "≈N💎 per ₹1" line so the user can actually compare value
-  //   • a one-line feature checklist ("Instant credit") so it's obvious
-  //     what buying gets them, not just a bare number
+  // ⚠️ UPGRADED CARD — now full-width (no more grid aspect-ratio
+  // constraint) and lists every AI/creator tool included with any diamond
+  // purchase, not just a generic "instant credit" line. Same
+  // border/color/radius language as before — only the layout (full width,
+  // free height) and the content (facility list) changed.
   Widget _packageCard(BuildContext context, int index) {
     final p = packages[index];
     final diamonds = p['diamonds'] as int;
@@ -348,8 +361,27 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
       }
     }
 
+    // ⚠️ NEW — the "what every purchase unlocks" checklist Boss asked for,
+    // shown on every single package card (not gated per-tier). Uses new
+    // translation keys (diamond_feature_ai_title /
+    // diamond_feature_ai_description / diamond_feature_thumbnail_prompt /
+    // diamond_feature_score_analysis / diamond_feature_competitor_analysis)
+    // — these need to be added to the app's language/translation files,
+    // which weren't part of what was shared with me. Send those over and
+    // I'll add the actual translated strings for every supported language;
+    // for now context.tr() will just fall back to showing the raw key if
+    // it's missing.
+    final facilityKeys = [
+      'diamond_feature_ai_title',
+      'diamond_feature_ai_description',
+      'diamond_feature_thumbnail_prompt',
+      'diamond_feature_score_analysis',
+      'diamond_feature_competitor_analysis',
+    ];
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 20, 14, 14),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 16),
       decoration: BoxDecoration(
         border: Border.all(color: badgeText != null ? (badgeColor ?? context.surfaces.border) : context.surfaces.border, width: badgeText != null ? 1.4 : 1),
         borderRadius: BorderRadius.circular(14),
@@ -359,7 +391,7 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
         children: [
           if (badgeText != null)
             Positioned(
-              top: -20,
+              top: -22,
               left: 0,
               right: 0,
               child: Center(
@@ -374,42 +406,81 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
               ),
             ),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('💎', style: TextStyle(fontSize: 28)),
-              const SizedBox(height: 6),
-              Text(
-                context.tr('diamonds_suffix').replaceAll('%d', '$diamonds'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text('₹${p['priceINR']}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
-              const SizedBox(height: 6),
-              if (perRupee > 0)
-                Text(
-                  context.tr('diamond_value_rate').replaceAll('%d', perRupee.toStringAsFixed(1)),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5, fontStyle: FontStyle.italic),
-                ),
-              const SizedBox(height: 8),
+              // ---- Top row: diamonds + price side by side (full-width
+              // layout gives room for this instead of a stacked/centered
+              // block) ----
               Row(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(Icons.bolt_rounded, size: 13, color: AppColors.green),
-                  const SizedBox(width: 3),
-                  Flexible(
+                  const Text('💎', style: TextStyle(fontSize: 30)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr('diamonds_suffix').replaceAll('%d', '$diamonds'),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text('₹${p['priceINR']}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                  if (perRupee > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(999)),
+                      child: Text(
+                        context.tr('diamond_value_rate').replaceAll('%d', perRupee.toStringAsFixed(1)),
+                        style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(height: 1, color: context.surfaces.border),
+              const SizedBox(height: 12),
+
+              // ---- Facility checklist — same tools on every card ----
+              Text(
+                context.tr('diamond_whats_included'),
+                style: TextStyle(color: context.surfaces.textDim, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+              ),
+              const SizedBox(height: 8),
+              ...facilityKeys.map((key) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 15, color: AppColors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            context.tr(key),
+                            style: const TextStyle(fontSize: 12.5, height: 1.25),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+              Row(
+                children: [
+                  Icon(Icons.bolt_rounded, size: 14, color: AppColors.green),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
                       context.tr('diamond_feature_instant'),
-                      style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
+                      style: const TextStyle(fontSize: 12.5),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -551,4 +622,12 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
 //
 // Please send me that backend file/path and I'll update the numbers
 // there too.
+//
+// ⚠️ ALSO NEEDED — translation keys for the new facility checklist lines
+// used above (diamond_feature_ai_title, diamond_feature_ai_description,
+// diamond_feature_thumbnail_prompt, diamond_feature_score_analysis,
+// diamond_feature_competitor_analysis, diamond_whats_included). Send me
+// wherever your other `diamond_*` keys are defined (LanguageProvider /
+// your translations json/arb files) and I'll add these alongside them for
+// every language the app supports.
 // ─────────────────────────────────────────────────────────────────────────

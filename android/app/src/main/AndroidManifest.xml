@@ -38,6 +38,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
+            <!-- ------ OAuth success callback ------ -->
             <!-- Deep link: lets the backend bounce the browser back into this app
                  after a YouTube "Connect Channel" OAuth flow finishes
                  (see backend/routes/youtube.js -> platform=mobile redirect). -->
@@ -46,6 +47,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="tubepilot" android:host="oauth-success" />
+            </intent-filter>
+
+            <!-- ------ "My Videos" share deep link ------ -->
+            <!-- Deep link: lets backend/routes/share.js's smart-link redirector
+                 (https://<backend>/v/<videoId>) bounce straight into this app
+                 when it's already installed, landing on My Videos with the
+                 shared video highlighted — see main.dart's _handleVideoDeepLink. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tubepilot" android:host="video" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

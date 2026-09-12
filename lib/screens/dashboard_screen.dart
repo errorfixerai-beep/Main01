@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
@@ -91,6 +92,15 @@ class _DashboardHomeState extends State<_DashboardHome> {
   // using the connected channel's category/niche when available — and
   // shows them via the shared showIdeaPopup() below, then stamps "now" as
   // the new last-shown time.
+  //
+  // ⚠️ Personalization now actually has real data to read: the backend's
+  // OAuth callback (routes/youtube.js) detects the connected channel's
+  // topic/category via YouTube's own topicDetails at connect time and
+  // saves it as `category` on the channel record — GET /youtube/channel
+  // (loaded in _load() below, into `youtubeChannel`) now returns it. Before
+  // this backend change, `youtubeChannel?['category']` was always null and
+  // every popup silently fell back to the generic 'Tech' niche inside
+  // showIdeaPopup().
   Future<void> _maybeShowIdeaPopup() async {
     final prefs = await SharedPreferences.getInstance();
     final lastShown = prefs.getInt(kIdeasPopupLastShownKey);
@@ -618,10 +628,17 @@ class _MetricCard extends StatelessWidget {
 // AI Idea popup — Boss request: after signup's channel-connect step (see
 // username_setup_screen.dart) AND again every 24 hours from the dashboard
 // (see _maybeShowIdeaPopup above), show 3 real ideas from POST /api/ai/ideas,
-// one at a time, each with emoji reactions below it, personalized to the
-// connected channel's niche when known, plus a Skip option.
+// personalized to the connected channel's niche when known, plus a Skip
+// option.
 // Public (not private to this file) so username_setup_screen.dart can call
 // showIdeaPopup() directly without duplicating this widget.
+//
+// ⚠️ UPDATED (Boss request — "3 step mein left/right scroll se ideas
+// badalte rahen, reaction ke niche copy button, stacked-card look"): the
+// dialog body below was rewritten from a single static AlertDialog into a
+// swipeable PageView-based card stack. See _IdeaPopupDialog for the new
+// implementation — showIdeaPopup() itself (the fetch + open-dialog logic)
+// is unchanged.
 // =============================================================================
 
 Future<void> showIdeaPopup(BuildContext context, {String? channelNiche}) async {
@@ -654,53 +671,187 @@ class _IdeaPopupDialog extends StatefulWidget {
 }
 
 class _IdeaPopupDialogState extends State<_IdeaPopupDialog> {
+  late final PageController _pageController;
   int _index = 0;
   static const _reactions = ['🔥', '😍', '🤔', '👎'];
 
-  void _next() {
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // Tapping a reaction (or reaching the end of a swipe past the last card)
+  // moves straight to the next idea; on the last idea it closes the popup
+  // — same "auto-advance" behavior Boss asked for, just now driven by the
+  // PageController instead of a plain index bump.
+  void _goNext() {
     if (_index < widget.ideas.length - 1) {
-      setState(() => _index++);
+      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     } else {
       Navigator.of(context).pop();
     }
   }
 
+  // ⚠️ NEW — Copy button handler. Uses Flutter's built-in Clipboard API
+  // (package:flutter/services.dart) — no new pubspec dependency needed.
+  Future<void> _copyIdea(Map<String, dynamic> idea) async {
+    final title = (idea['title'] ?? '').toString();
+    final desc = (idea['description'] ?? idea['hook'] ?? '').toString();
+    final text = desc.isNotEmpty ? '$title\n\n$desc' : title;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) showToast(context, context.tr('idea_popup_copied_toast'), isSuccess: true);
+  }
+
+  // Purely decorative "peeking card" behind the active card — gives the
+  // stacked-photos look from the reference image. No content inside, just
+  // a faint bordered rectangle, offset/scaled so it peeks out from behind.
+  Widget _peekCard({required double top, required double scale, required double opacity}) {
+    return Positioned(
+      top: top,
+      child: Opacity(
+        opacity: opacity,
+        child: Transform.scale(
+          scale: scale,
+          child: Container(
+            width: 250,
+            height: 190,
+            decoration: BoxDecoration(
+              color: AppColors.purple.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.purple.withValues(alpha: 0.15)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _ideaCard(Map<String, dynamic> idea, int idx) {
+    return Container(
+      width: 250,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.surfaces.border),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.lightbulb_rounded, color: AppColors.purple, size: 15),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    context.tr('idea_popup_card_label').replaceAll('%d', '${idx + 1}'),
+                    style: TextStyle(color: context.surfaces.textDim, fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(idea['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            const SizedBox(height: 8),
+            Text(idea['description'] ?? idea['hook'] ?? '', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.35)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final idea = widget.ideas[_index];
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      title: Row(children: [
-        const Icon(Icons.auto_awesome_rounded, color: AppColors.purple, size: 20),
-        const SizedBox(width: 8),
-        Expanded(child: Text(context.tr('idea_popup_title'))),
-        Text('${_index + 1}/${widget.ideas.length}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
-      ]),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(idea['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-          const SizedBox(height: 8),
-          Text(idea['description'] ?? idea['hook'] ?? '', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-          const SizedBox(height: 16),
-          // Emoji reactions — tapping any of them records the reaction
-          // (visual feedback) and advances straight to the next idea.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: _reactions.map((e) => GestureDetector(
-              onTap: _next,
-              child: Text(e, style: const TextStyle(fontSize: 26)),
-            )).toList(),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton(
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              const Icon(Icons.auto_awesome_rounded, color: AppColors.purple, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(context.tr('idea_popup_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+              Text('${_index + 1}/${widget.ideas.length}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+            ]),
+            const SizedBox(height: 16),
+
+            // ---- Swipeable 3-step card stack ----
+            // Left/right swipe on the PageView moves between the 3 ideas
+            // (Boss's "scroll se ideas badalte rahen" requirement) — no
+            // extra gesture wiring needed, PageView handles that natively.
+            SizedBox(
+              height: 226,
+              child: Stack(
+                alignment: Alignment.topCenter,
+                clipBehavior: Clip.none,
+                children: [
+                  if (_index < widget.ideas.length - 2) _peekCard(top: 16, scale: 0.90, opacity: 0.35),
+                  if (_index < widget.ideas.length - 1) _peekCard(top: 8, scale: 0.95, opacity: 0.55),
+                  PageView.builder(
+                    controller: _pageController,
+                    itemCount: widget.ideas.length,
+                    onPageChanged: (i) => setState(() => _index = i),
+                    itemBuilder: (_, i) => Center(child: _ideaCard(widget.ideas[i], i)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              context.tr('idea_popup_swipe_hint'),
+              style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 14),
+
+            // Emoji reactions — tapping any of them advances to the next
+            // idea automatically (or closes the dialog on the last one).
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: _reactions.map((e) => GestureDetector(
+                onTap: _goNext,
+                child: Text(e, style: const TextStyle(fontSize: 26)),
+              )).toList(),
+            ),
+            const SizedBox(height: 14),
+
+            // ⚠️ NEW — Copy button, bottom of the card per Boss's spec, so
+            // the currently-shown idea's title+description can be copied
+            // straight into a script/notes app.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _copyIdea(widget.ideas[_index]),
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                label: Text(context.tr('idea_popup_copy_btn')),
+              ),
+            ),
+            const SizedBox(height: 4),
+            TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: Text(context.tr('skip')),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

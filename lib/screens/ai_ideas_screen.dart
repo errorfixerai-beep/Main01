@@ -16,6 +16,12 @@ import '../widgets/custom_dropdown.dart';
 /// is — so the button is now icon+label "Copy", same onPressed logic.
 /// Needs a new localization key: `ai_ideas_copy_btn` -> "Copy".
 ///
+/// ⚠️ FIX (Boss correction — "copy button ka background nahi hona
+/// chahiye"): was a solid `ElevatedButton.icon` (filled purple/maroon).
+/// Swapped to `OutlinedButton.icon` — transparent background, purple
+/// border + purple icon/label, matching the outlined style used
+/// elsewhere in the app (e.g. Channel Audit's Copy/Gemini buttons).
+///
 /// ⚠️ FIX (Boss request — "dropdown sahi se nahin ho raha, ise sahi
 /// karo"): Niche/Platform were a `DropdownButtonFormField` (CustomDropdown)
 /// whose opened menu is a separate Overlay that Flutter positions relative
@@ -236,15 +242,21 @@ class _AiIdeasScreenState extends State<AiIdeasScreen> {
                       label: Text(expanded ? context.tr('ai_ideas_hide_script') : context.tr('ai_ideas_full_script')),
                     ),
                     const Spacer(),
-                    // ⚠️ FIX (Boss request — "send to scheduler button
-                    // hatake copy ka button lagao"): plain Copy button,
-                    // same clipboard action as before, honest labeling.
-                    ElevatedButton.icon(
+                    // ⚠️ FIX (Boss correction — "copy button ka background
+                    // nahi hona chahiye"): outlined style, no fill —
+                    // purple border + purple icon/label. Same clipboard
+                    // action as before, just the honest "Copy" look.
+                    OutlinedButton.icon(
                       onPressed: () {
                         final text = '${idea['title']}\n\n${idea['script'] ?? idea['description']}';
                         Clipboard.setData(ClipboardData(text: text));
                         showToast(context, context.tr('ai_ideas_copied_toast'), isSuccess: true);
                       },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.purple,
+                        side: const BorderSide(color: AppColors.purple),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                       icon: const Icon(Icons.copy_rounded, size: 16),
                       label: Text(context.tr('ai_ideas_copy_btn')),
                     ),

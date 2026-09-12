@@ -13,6 +13,7 @@ import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/meta_page_picker_screen.dart';
+import 'screens/my_videos_screen.dart';
 import 'widgets/common.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -126,8 +127,28 @@ class _TubePilotAppState extends State<TubePilotApp> {
   }
 
   void _handleDeepLink(Uri uri) {
-    if (uri.scheme != 'tubepilot' || uri.host != 'oauth-success') return;
+    if (uri.scheme != 'tubepilot') return;
 
+    // ------ OAuth success callback ------ //
+    // Comes from backend/routes/youtube.js (and the equivalent Meta OAuth
+    // route) redirecting the external browser back into the app after a
+    // "Connect Channel" flow finishes: tubepilot://oauth-success?...
+    if (uri.host == 'oauth-success') {
+      _handleOAuthSuccess(uri);
+      return;
+    }
+
+    // ------ "My Videos" share deep link ------ //
+    // Comes from backend/routes/share.js's smart-link redirector, which the
+    // Share button (my_videos_screen.dart) points people to:
+    // https://<backend>/v/<videoId> -> tubepilot://video/<videoId>
+    if (uri.host == 'video') {
+      _handleVideoDeepLink(uri);
+      return;
+    }
+  }
+
+  void _handleOAuthSuccess(Uri uri) {
     if (_lastHandledUri == uri) return;
     _lastHandledUri = uri;
 
@@ -165,6 +186,29 @@ class _TubePilotAppState extends State<TubePilotApp> {
     if (hasMetaParam && metaSuccess && metaMultiplePages) {
       navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const MetaPagePickerScreen()));
     }
+  }
+
+  // ⚠️ NEW — handles tubepilot://video/<videoId> (opened when someone taps
+  // a link shared from the "My Videos" screen and the app IS installed).
+  // Backend's routes/share.js redirects the browser here directly; if the
+  // app is NOT installed, that same page instead falls back to the Play
+  // Store, so this handler only ever needs to cover the "app installed"
+  // case.
+  //
+  // There's no dedicated single-video detail screen yet, so this opens
+  // "My Videos" and lets that screen scroll to / highlight the matching
+  // card via the `highlightVideoId` param, rather than silently doing
+  // nothing with the id.
+  void _handleVideoDeepLink(Uri uri) {
+    if (_lastHandledUri == uri) return;
+    _lastHandledUri = uri;
+
+    final videoId = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    if (videoId == null || videoId.isEmpty) return;
+
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => MyVideosScreen(highlightVideoId: videoId)),
+    );
   }
 
   @override

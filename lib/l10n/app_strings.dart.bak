@@ -78,6 +78,8 @@ class AppStrings {
 'audit_open_gemini_btn': {'en': 'Gemini', 'hi': 'जेमिनी', 'hinglish': 'Gemini', 'ta': 'ஜெமினி', 'bn': 'জেমিনি', 'mr': 'जेमिनी', 'ur': 'جیمنی'},
 'audit_prompt_locked_label': {'en': 'Upgrade to unlock', 'hi': 'अनलॉक करने के लिए अपग्रेड करें', 'hinglish': 'Unlock karne ke liye Upgrade karo', 'ta': 'திறக்க அப்கிரேட் செய்யவும்', 'bn': 'আনলক করতে আপগ্রেড করুন', 'mr': 'अनलॉक करण्यासाठी अपग्रेड करा', 'ur': 'ان لاک کرنے کے لیے اپ گریڈ کریں'},
 
+'audit_open_gemini_btn': {'en': 'Gemini', 'hi': 'जेमिनी', 'hinglish': 'Gemini', 'ta': 'ஜெமினி', 'bn': 'জেমিনি', 'mr': 'जेमिनी', 'ur': 'جیمنی'},
+'audit_prompt_locked_label': {'en': 'Upgrade to unlock', 'hi': 'अनलॉक करने के लिए अपग्रेड करें', 'hinglish': 'Unlock karne ke liye Upgrade karo', 'ta': 'திறக்க அப்கிரேட் செய்யவும்', 'bn': 'আনলক করতে আপগ্রেড করুন', 'mr': 'अनलॉक करण्यासाठी अपग्रेड करा', 'ur': 'ان لاک کرنے کے لیے اپ گریڈ کریں'},
 
 'diamond_badge_popular': {'en': 'Popular', 'hi': 'लोकप्रिय', 'hinglish': 'Popular', 'ta': 'பிரபலமானது', 'bn': 'জনপ্রিয়', 'mr': 'लोकप्रिय', 'ur': 'مقبول'},
 'diamond_badge_best_value': {'en': 'Best Value', 'hi': 'सर्वश्रेष्ठ मूल्य', 'hinglish': 'Best Value', 'ta': 'சிறந்த மதிப்பு', 'bn': 'সেরা মূল্য', 'mr': 'सर्वोत्तम मूल्य', 'ur': 'بہترین قیمت'},
@@ -90,6 +92,7 @@ class AppStrings {
 'diamond_support_email_copied': {'en': 'Email copied to clipboard', 'hi': 'ईमेल क्लिपबोर्ड में कॉपी हो गया', 'hinglish': 'Email clipboard me copy ho gaya', 'ta': 'மின்னஞ்சல் நகலெடுக்கப்பட்டது', 'bn': 'ইমেইল ক্লিপবোর্ডে কপি হয়েছে', 'mr': 'ईमेल क्लिपबोर्डवर कॉपी झाला', 'ur': 'ای میل کلپ بورڈ میں کاپی ہو گیا'},
 
 
+'diamond_support_title': {'en': 'Tap to contact support', 'hi': 'सहायता के लिए टैप करें', 'hinglish': 'Support ke liye tap karo', 'ta': 'ஆதரவைத் தொடர்பு கொள்ள தட்டவும்', 'bn': 'সহায়তার জন্য ট্যাপ করুন', 'mr': 'सहाय्यासाठी टॅप करा', 'ur': 'مدد کے لیے ٹیپ کریں'},
 'diamond_support_error': {'en': 'Could not open email app', 'hi': 'ईमेल ऐप नहीं खुल पाया', 'hinglish': 'Email app open nahi ho paya', 'ta': 'மின்னஞ்சல் ஆப்பைத் திறக்க முடியவில்லை', 'bn': 'ইমেইল অ্যাপ খুলতে ব্যর্থ', 'mr': 'ईमेल अ‍ॅप उघडता आले नाही', 'ur': 'ای میل ایپ نہیں کھل سکی'},
     // ================= Profile screen: Creator OS + menu (Boss update, round 4) =================
     'creator_os_section': {'en': 'Creator OS', 'hi': 'क्रिएटर OS', 'hinglish': 'Creator OS', 'ta': 'கிரியேட்டர் OS', 'bn': 'ক্রিয়েটর OS', 'mr': 'क्रिएटर OS', 'ur': 'کریئٹر او ایس'},
