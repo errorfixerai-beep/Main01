@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/auth_provider.dart';
 import '../theme/app_theme.dart';
@@ -16,6 +17,13 @@ import 'rate_us_screen.dart';
 import 'ai_ideas_screen.dart';
 import 'ai_title_description_screen.dart';
 import 'channel_audit_screen.dart';
+
+// Key used in SharedPreferences to remember when the AI Idea popup
+// (see showIdeaPopup below) was last shown, so it can be re-shown once
+// every 24 hours instead of on every app open. Shared between this file
+// and username_setup_screen.dart (which sets it right after the very
+// first popup shown post-signup).
+const String kIdeasPopupLastShownKey = 'ideas_popup_last_shown_ms';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -66,9 +74,34 @@ class _DashboardHomeState extends State<_DashboardHome> {
   @override
   void initState() {
     super.initState();
-    _load().then((_) {
-      if (mounted) maybeShowRateUsPopup(context);
+    _load().then((_) async {
+      if (!mounted) return;
+      maybeShowRateUsPopup(context);
+      // Small delay so the rate-us popup (if it shows) isn't immediately
+      // stacked under the idea popup — the two are independent nudges,
+      // this just keeps them from fighting over the same frame.
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) await _maybeShowIdeaPopup();
     });
+  }
+
+  // ⚠️ NEW (Boss request — "daily yani 24 hours baad naya ideas suggest
+  // kare"): checks SharedPreferences for when the idea popup last showed;
+  // if it's been 24+ hours (or never), fetches 3 fresh ideas — personalized
+  // using the connected channel's category/niche when available — and
+  // shows them via the shared showIdeaPopup() below, then stamps "now" as
+  // the new last-shown time.
+  Future<void> _maybeShowIdeaPopup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastShown = prefs.getInt(kIdeasPopupLastShownKey);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (lastShown != null && now - lastShown < const Duration(hours: 24).inMilliseconds) {
+      return;
+    }
+    if (!mounted) return;
+    final niche = youtubeChannel?['category'] ?? youtubeChannel?['topicCategory'];
+    await showIdeaPopup(context, channelNiche: niche is String && niche.isNotEmpty ? niche : null);
+    await prefs.setInt(kIdeasPopupLastShownKey, now);
   }
 
   Future<void> _load({bool showLoader = true}) async {
@@ -220,12 +253,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ⚠️ FIX (Boss request — "mock icon hata ke real logo use
-            // karo"): the bordered play-icon placeholder is replaced with
-            // the actual app logo (assets/splash.png — a transparent PNG,
-            // so no background container/border is needed around it
-            // anymore).
-            Image.asset('assets/splash.png', width: 26, height: 26),
+            // ⚠️ FIX (Boss request — "logo bada karna hai"): bumped from
+            // 26x26 to 36x36 so the real logo actually reads clearly next
+            // to the wordmark instead of looking like a small favicon.
+            Image.asset('assets/splash.png', width: 36, height: 36),
             const SizedBox(width: 8),
             // ⚠️ FIX (Boss request — "TubePilot ko Tube Pilot karo, Tube
             // black aur Pilot plum color mein"): split into two colored
@@ -578,6 +609,98 @@ class _MetricCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// AI Idea popup — Boss request: after signup's channel-connect step (see
+// username_setup_screen.dart) AND again every 24 hours from the dashboard
+// (see _maybeShowIdeaPopup above), show 3 real ideas from POST /api/ai/ideas,
+// one at a time, each with emoji reactions below it, personalized to the
+// connected channel's niche when known, plus a Skip option.
+// Public (not private to this file) so username_setup_screen.dart can call
+// showIdeaPopup() directly without duplicating this widget.
+// =============================================================================
+
+Future<void> showIdeaPopup(BuildContext context, {String? channelNiche}) async {
+  List<Map<String, dynamic>> ideas = [];
+  try {
+    final res = await ApiService.instance.aiIdeas(
+      niche: channelNiche ?? 'Tech',
+      platform: 'youtube',
+      count: 3,
+    );
+    ideas = (res['ideas'] as List? ?? []).cast<Map<String, dynamic>>();
+  } catch (_) {
+    // Silent failure — this is a soft nudge popup, not a core flow, so a
+    // failed fetch just means no popup rather than blocking the user.
+  }
+  if (ideas.isEmpty || !context.mounted) return;
+
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _IdeaPopupDialog(ideas: ideas.take(3).toList()),
+  );
+}
+
+class _IdeaPopupDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> ideas;
+  const _IdeaPopupDialog({required this.ideas});
+  @override
+  State<_IdeaPopupDialog> createState() => _IdeaPopupDialogState();
+}
+
+class _IdeaPopupDialogState extends State<_IdeaPopupDialog> {
+  int _index = 0;
+  static const _reactions = ['🔥', '😍', '🤔', '👎'];
+
+  void _next() {
+    if (_index < widget.ideas.length - 1) {
+      setState(() => _index++);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final idea = widget.ideas[_index];
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: Row(children: [
+        const Icon(Icons.auto_awesome_rounded, color: AppColors.purple, size: 20),
+        const SizedBox(width: 8),
+        Expanded(child: Text(context.tr('idea_popup_title'))),
+        Text('${_index + 1}/${widget.ideas.length}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+      ]),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(idea['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          const SizedBox(height: 8),
+          Text(idea['description'] ?? idea['hook'] ?? '', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+          const SizedBox(height: 16),
+          // Emoji reactions — tapping any of them records the reaction
+          // (visual feedback) and advances straight to the next idea.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: _reactions.map((e) => GestureDetector(
+              onTap: _next,
+              child: Text(e, style: const TextStyle(fontSize: 26)),
+            )).toList(),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.tr('skip')),
+            ),
+          ),
+        ],
       ),
     );
   }

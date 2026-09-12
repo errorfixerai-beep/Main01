@@ -5,14 +5,25 @@ import '../providers/language_provider.dart';
 import 'common.dart';
 
 /// Shared "Apply to Video" flow used by the AI Title/Description generator
-/// and the SEO Optimizer's "Apply to Video" button. Opens a bottom sheet
-/// listing the user's queued videos (GET /videos?status=queued), lets them
-/// pick one video AND which platform target on it to update (title/
-/// description are stored per-platform — see models/Video.js), then PATCHes
-/// PATCH /api/videos/:id/metadata with the chosen text.
+/// and the SEO Optimizer's "Apply to Video" button.
 ///
-/// Returns true if the update succeeded (so the caller can show its own
-/// success state / pop its own screen if desired), false/null otherwise.
+/// ⚠️ FIX (Boss request — Option B): previously this ONLY listed videos
+/// TubePilot itself uploaded and that are still 'queued' (GET
+/// /videos?status=queued). If a creator's channel had videos already
+/// published — either uploaded through TubePilot and already live, or
+/// uploaded directly via YouTube Studio — none of them showed up here,
+/// so "Apply to Video" looked broken ("No queued videos") even though
+/// the channel clearly had videos.
+///
+/// Now shows TWO sections:
+///   1. "Scheduled in TubePilot" — existing behaviour, unchanged. Picking
+///      one still requires choosing a platform target and PATCHes
+///      /api/videos/:id/metadata (TubePilot's own DB record).
+///   2. "Published on YouTube" — NEW. Real videos fetched straight from
+///      the connected channel (GET /api/youtube/my-videos). Picking one
+///      writes directly to YouTube itself via
+///      PATCH /api/youtube/my-videos/:videoId — no platform choice needed,
+///      since this IS the YouTube video.
 Future<bool?> showApplyToVideoSheet(
   BuildContext context, {
   String? title,
@@ -27,6 +38,10 @@ Future<bool?> showApplyToVideoSheet(
   );
 }
 
+// Which list the currently-selected video came from — decides which API
+// call _confirmApply() makes.
+enum _Source { queued, youtube }
+
 class _ApplyToVideoSheet extends StatefulWidget {
   final String? title;
   final String? description;
@@ -39,9 +54,18 @@ class _ApplyToVideoSheet extends StatefulWidget {
 class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
   bool _loading = true;
   bool _applying = false;
-  List<Map<String, dynamic>> _videos = [];
-  String? _selectedVideoId;
-  String? _selectedPlatform;
+
+  List<Map<String, dynamic>> _queuedVideos = [];
+  List<Map<String, dynamic>> _youtubeVideos = [];
+  // Set when the "Published on YouTube" fetch fails for a reason other
+  // than "no channel connected" (e.g. token expired) — shown as a small
+  // inline note rather than blocking the queued-videos section.
+  String? _youtubeLoadError;
+
+  _Source? _selectedSource;
+  String? _selectedVideoId; // TubePilot video _id (queued flow)
+  String? _selectedPlatform; // platform chip (queued flow only)
+  String? _selectedYoutubeVideoId; // real YouTube videoId (youtube flow)
 
   @override
   void initState() {
@@ -51,11 +75,22 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
 
   Future<void> _load() async {
     try {
-      // Both 'queued' and 'draft' videos can still have their metadata
-      // edited server-side (see routes/video.js — anything not yet
-      // processing/uploaded/failed) — draft videos are ones still mid-setup.
-      final res = await ApiService.instance.listVideos(status: 'queued');
-      setState(() => _videos = (res['videos'] as List? ?? []).cast<Map<String, dynamic>>());
+      final results = await Future.wait([
+        ApiService.instance.listVideos(status: 'queued'),
+        ApiService.instance.getMyYoutubeVideos().catchError((e) {
+          // No channel connected (404) is an expected, silent case — just
+          // means section 2 stays empty. Any other failure (expired
+          // token, network) is surfaced as a small note instead of
+          // blocking the sheet entirely.
+          _youtubeLoadError = e.toString().contains('404') ? null : e.toString().replaceFirst('ApiException: ', '');
+          return <String, dynamic>{};
+        }),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _queuedVideos = (results[0]['videos'] as List? ?? []).cast<Map<String, dynamic>>();
+        _youtubeVideos = (results[1]['videos'] as List? ?? []).cast<Map<String, dynamic>>();
+      });
     } catch (e) {
       if (mounted) showApiError(context, e);
     } finally {
@@ -63,16 +98,52 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
     }
   }
 
+  void _selectQueued(String videoId) {
+    setState(() {
+      _selectedSource = _Source.queued;
+      _selectedVideoId = videoId;
+      _selectedPlatform = null;
+      _selectedYoutubeVideoId = null;
+    });
+  }
+
+  void _selectYoutube(String videoId) {
+    setState(() {
+      _selectedSource = _Source.youtube;
+      _selectedYoutubeVideoId = videoId;
+      _selectedVideoId = null;
+      _selectedPlatform = null;
+    });
+  }
+
+  bool get _canConfirm {
+    if (_selectedSource == _Source.queued) {
+      return _selectedVideoId != null && _selectedPlatform != null;
+    }
+    if (_selectedSource == _Source.youtube) {
+      return _selectedYoutubeVideoId != null;
+    }
+    return false;
+  }
+
   Future<void> _confirmApply() async {
-    if (_selectedVideoId == null || _selectedPlatform == null) return;
+    if (!_canConfirm) return;
     setState(() => _applying = true);
     try {
-      await ApiService.instance.updateVideoMetadata(
-        _selectedVideoId!,
-        platform: _selectedPlatform!,
-        title: widget.title,
-        description: widget.description,
-      );
+      if (_selectedSource == _Source.queued) {
+        await ApiService.instance.updateVideoMetadata(
+          _selectedVideoId!,
+          platform: _selectedPlatform!,
+          title: widget.title,
+          description: widget.description,
+        );
+      } else {
+        await ApiService.instance.updateYoutubeVideoMetadata(
+          _selectedYoutubeVideoId!,
+          title: widget.title,
+          description: widget.description,
+        );
+      }
       if (mounted) {
         showToast(context, context.tr('apply_to_video_success_toast'), isSuccess: true);
         Navigator.of(context).pop(true);
@@ -86,11 +157,11 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedVideo = _videos.firstWhere(
+    final selectedQueuedVideo = _queuedVideos.firstWhere(
       (v) => v['_id'] == _selectedVideoId,
       orElse: () => <String, dynamic>{},
     );
-    final platformTargets = (selectedVideo['platforms'] as List? ?? []).cast<Map<String, dynamic>>();
+    final platformTargets = (selectedQueuedVideo['platforms'] as List? ?? []).cast<Map<String, dynamic>>();
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -115,44 +186,50 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
               style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5),
             ),
             const SizedBox(height: 16),
+
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: LoadingView())
-            else if (_videos.isEmpty)
-              EmptyView(message: context.tr('apply_to_video_empty'), icon: Icons.video_library_outlined)
             else ...[
-              ..._videos.map((v) {
-                final selected = v['_id'] == _selectedVideoId;
-                return GestureDetector(
-                  onTap: () => setState(() {
-                    _selectedVideoId = v['_id'];
-                    _selectedPlatform = null; // reset platform choice when video changes
-                  }),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: selected ? AppColors.purple : context.surfaces.border, width: selected ? 1.6 : 1),
-                      borderRadius: BorderRadius.circular(12),
-                      color: selected ? AppColors.purple.withValues(alpha: 0.08) : null,
-                    ),
-                    child: Row(children: [
-                      Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                          size: 18, color: selected ? AppColors.purple : context.surfaces.textDim),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _videoLabel(v),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
-                        ),
+              // ---------------- Section 1: TubePilot queued videos ----------------
+              Text(context.tr('apply_to_video_section_queued'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              if (_queuedVideos.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: EmptyView(message: context.tr('apply_to_video_empty'), icon: Icons.video_library_outlined),
+                )
+              else
+                ..._queuedVideos.map((v) {
+                  final selected = _selectedSource == _Source.queued && v['_id'] == _selectedVideoId;
+                  return GestureDetector(
+                    onTap: () => _selectQueued(v['_id']),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: selected ? AppColors.purple : context.surfaces.border, width: selected ? 1.6 : 1),
+                        borderRadius: BorderRadius.circular(12),
+                        color: selected ? AppColors.purple.withValues(alpha: 0.08) : null,
                       ),
-                    ]),
-                  ),
-                );
-              }),
-              if (_selectedVideoId != null && platformTargets.isNotEmpty) ...[
-                const SizedBox(height: 14),
+                      child: Row(children: [
+                        Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                            size: 18, color: selected ? AppColors.purple : context.surfaces.textDim),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _queuedVideoLabel(v),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  );
+                }),
+
+              if (_selectedSource == _Source.queued && platformTargets.isNotEmpty) ...[
+                const SizedBox(height: 10),
                 Text(context.tr('apply_to_video_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Wrap(
@@ -170,11 +247,66 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
                   }).toList(),
                 ),
               ],
+
+              const SizedBox(height: 20),
+
+              // ---------------- Section 2: real YouTube channel videos ----------------
+              Text(context.tr('apply_to_video_section_youtube'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              if (_youtubeLoadError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_youtubeLoadError!, style: const TextStyle(color: AppColors.red, fontSize: 12)),
+                )
+              else if (_youtubeVideos.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: EmptyView(message: context.tr('apply_to_video_youtube_empty'), icon: Icons.smart_display_outlined),
+                )
+              else
+                ..._youtubeVideos.map((v) {
+                  final selected = _selectedSource == _Source.youtube && v['videoId'] == _selectedYoutubeVideoId;
+                  final thumb = (v['thumbnail'] ?? '').toString();
+                  return GestureDetector(
+                    onTap: () => _selectYoutube(v['videoId']),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: selected ? AppColors.purple : context.surfaces.border, width: selected ? 1.6 : 1),
+                        borderRadius: BorderRadius.circular(12),
+                        color: selected ? AppColors.purple.withValues(alpha: 0.08) : null,
+                      ),
+                      child: Row(children: [
+                        Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                            size: 18, color: selected ? AppColors.purple : context.surfaces.textDim),
+                        const SizedBox(width: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: thumb.isNotEmpty
+                              ? Image.network(thumb, width: 42, height: 42, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(width: 42, height: 42, color: context.surfaces.card2))
+                              : Container(width: 42, height: 42, color: context.surfaces.card2),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (v['title'] ?? '').toString().isNotEmpty ? v['title'] : context.tr('apply_to_video_untitled'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  );
+                }),
+
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: (_selectedVideoId == null || _selectedPlatform == null || _applying) ? null : _confirmApply,
+                  onPressed: (!_canConfirm || _applying) ? null : _confirmApply,
                   child: _applying
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : Text(context.tr('apply_to_video_confirm_btn')),
@@ -187,7 +319,7 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
     );
   }
 
-  String _videoLabel(Map<String, dynamic> v) {
+  String _queuedVideoLabel(Map<String, dynamic> v) {
     final platforms = (v['platforms'] as List? ?? []).cast<Map<String, dynamic>>();
     final firstTitle = platforms.map((p) => p['title']).firstWhere((t) => (t ?? '').toString().isNotEmpty, orElse: () => null);
     return firstTitle ?? context.tr('apply_to_video_untitled');

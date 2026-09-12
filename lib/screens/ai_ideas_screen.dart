@@ -7,13 +7,14 @@ import '../widgets/common.dart';
 import '../widgets/custom_dropdown.dart';
 
 /// Screen 1/7 of the Creator OS suite — POST /api/ai/ideas.
-/// NOTE ("Send to Scheduler"): UploadScreen is file-based (it needs an
-/// actual video/image picked before any text field is shown), so there's
-/// no existing hook to deep-link a text-only idea straight into it without
-/// a larger UploadScreen refactor. Until that refactor happens, "Send to
-/// Scheduler" copies the idea's title + script to the clipboard so the
-/// creator can paste it in while uploading — a real, working action
-/// instead of a dead button.
+/// NOTE ("Copy" button — Boss correction): this used to be a single button
+/// labeled "Send to Scheduler" that actually just copied the idea's
+/// title + script to the clipboard (a real, working stand-in, since
+/// UploadScreen is file-based and there's no hook to deep-link a
+/// text-only idea into it without a larger refactor). Boss asked to stop
+/// pretending it's a "send" action and just make it look like what it
+/// is — so the button is now icon+label "Copy", same onPressed logic.
+/// Needs a new localization key: `ai_ideas_copy_btn` -> "Copy".
 ///
 /// ⚠️ FIX (Boss request — "dropdown sahi se nahin ho raha, ise sahi
 /// karo"): Niche/Platform were a `DropdownButtonFormField` (CustomDropdown)
@@ -235,14 +236,17 @@ class _AiIdeasScreenState extends State<AiIdeasScreen> {
                       label: Text(expanded ? context.tr('ai_ideas_hide_script') : context.tr('ai_ideas_full_script')),
                     ),
                     const Spacer(),
+                    // ⚠️ FIX (Boss request — "send to scheduler button
+                    // hatake copy ka button lagao"): plain Copy button,
+                    // same clipboard action as before, honest labeling.
                     ElevatedButton.icon(
                       onPressed: () {
                         final text = '${idea['title']}\n\n${idea['script'] ?? idea['description']}';
                         Clipboard.setData(ClipboardData(text: text));
                         showToast(context, context.tr('ai_ideas_copied_toast'), isSuccess: true);
                       },
-                      icon: const Icon(Icons.send_rounded, size: 16),
-                      label: Text(context.tr('ai_ideas_send_to_scheduler')),
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: Text(context.tr('ai_ideas_copy_btn')),
                     ),
                   ]),
                 ],

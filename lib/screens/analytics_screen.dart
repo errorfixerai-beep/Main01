@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../services/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../providers/language_provider.dart';
 import 'notifications_screen.dart';
+import 'profile_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   final bool embedded;
@@ -42,17 +45,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
-  void _showHelp() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(context.tr('analytics_help_title')),
-        content: Text(context.tr('analytics_help_body')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.tr('ok_btn'))),
-        ],
-      ),
-    );
+  void _goToProfile() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())).then((_) => _load(showLoader: false));
+  }
+
+  // ⚠️ FIX (Boss request — "analyze screen mein question mark hai profile
+  // screen mein but wahan real email honi chahiye"): this avatar used to
+  // be a plain "?" icon that opened a generic help dialog. It now reads
+  // straight from AuthProvider's cached user object — the SAME source of
+  // truth dashboard_screen.dart's avatar uses — so it can never disagree
+  // with what Dashboard/Settings show, and tapping it opens Profile
+  // instead of a help popup.
+  String? _userEmail(BuildContext context) {
+    final user = context.watch<AuthProvider>().user ?? {};
+    final email = user['email'];
+    return (email is String && email.isNotEmpty) ? email : null;
+  }
+
+  String _userInitial(BuildContext context) {
+    final email = _userEmail(context);
+    return (email != null) ? email.trim()[0].toUpperCase() : '?';
   }
 
   int get _diamondCostPerUpload {
@@ -107,13 +119,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
-              onTap: _showHelp,
+              onTap: _goToProfile,
               child: Container(
                 width: 34,
                 height: 34,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: AppColors.purple, shape: BoxShape.circle),
-                child: const Icon(Icons.question_mark_rounded, color: Colors.white, size: 16),
+                decoration: BoxDecoration(
+                  gradient: AppColors.gradient,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).colorScheme.surface, width: 1.5),
+                ),
+                child: Text(
+                  _userInitial(context),
+                  style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w800),
+                ),
               ),
             ),
           ),

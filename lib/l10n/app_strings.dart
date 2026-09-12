@@ -67,7 +67,34 @@ class AppStrings {
     'connected_label': {'en': 'Connected', 'hi': 'कनेक्टेड', 'hinglish': 'Connected', 'ta': 'இணைக்கப்பட்டது', 'bn': 'সংযুক্ত', 'mr': 'कनेक्टेड', 'ur': 'منسلک ہے'},
     'no_ig_on_page': {'en': 'No IG on this Page', 'hi': 'इस पेज पर कोई IG नहीं है', 'hinglish': 'Is page par IG nahi hai', 'ta': 'இந்தப் பக்கத்தில் IG இல்லை', 'bn': 'এই পেজে কোনো IG নেই', 'mr': 'या पेजवर IG नाही', 'ur': 'اس پیج پر انسٹاگرام نہیں'},
     'auto_linked_facebook': {'en': 'Auto-linked with Facebook', 'hi': 'Facebook के साथ ऑटो-लिंक्ड', 'hinglish': 'Facebook ke saath Auto-linked', 'ta': 'Facebook உடன் தானாக இணைக்கப்பட்டது', 'bn': 'Facebook-এর সাথে অটো-লিঙ্কড', 'mr': 'Facebook सह ऑटो-लिंक्ड', 'ur': 'فیس بک کے ساتھ خودکار منسلک'},
+  
+  'ai_ideas_copy_btn': {'en': 'Copy', 'hi': 'कॉपी करें', 'hinglish': 'Copy Karo', 'ta': 'நகலெடு', 'bn': 'কপি করুন', 'mr': 'कॉपी करा', 'ur': 'کاپی کریں'},
+'idea_popup_title': {'en': 'Fresh Idea For You', 'hi': 'आपके लिए नया आइडिया', 'hinglish': 'Aapke liye Fresh Idea', 'ta': 'உங்களுக்கான புதிய யோசனை', 'bn': 'আপনার জন্য নতুন আইডিয়া', 'mr': 'तुमच्यासाठी नवीन कल्पना', 'ur': 'آپ کے لیے نیا آئیڈیا'},
+'channel_connect_dialog_title': {'en': 'Connect Your Channel', 'hi': 'अपना चैनल कनेक्ट करें', 'hinglish': 'Apna Channel Connect Karo', 'ta': 'உங்கள் சேனலை இணைக்கவும்', 'bn': 'আপনার চ্যানেল সংযুক্ত করুন', 'mr': 'तुमचे चॅनल कनेक्ट करा', 'ur': 'اپنا چینل کنیکٹ کریں'},
+'channel_connect_dialog_body': {'en': 'Connect your YouTube channel to get personalized AI ideas and start scheduling uploads.', 'hi': 'पर्सनलाइज्ड AI आइडिया पाने और अपलोड शेड्यूल करने के लिए अपना यूट्यूब चैनल कनेक्ट करें।', 'hinglish': 'Personalized AI ideas pane aur uploads schedule karne ke liye apna YouTube channel connect karo.', 'ta': 'தனிப்பயனாக்கப்பட்ட AI யோசனைகளைப் பெறவும், பதிவேற்றங்களை திட்டமிடவும் உங்கள் YouTube சேனலை இணைக்கவும்.', 'bn': 'ব্যক্তিগতকৃত AI আইডিয়া পেতে এবং আপলোড শিডিউল করতে আপনার ইউটিউব চ্যানেল সংযুক্ত করুন।', 'mr': 'वैयक्तिकृत AI कल्पना मिळवण्यासाठी आणि अपलोड शेड्यूल करण्यासाठी तुमचे YouTube चॅनल कनेक्ट करा.', 'ur': 'ذاتی AI آئیڈیاز حاصل کرنے اور اپلوڈز شیڈول کرنے کے لیے اپنا یوٹیوب چینل کنیکٹ کریں۔'},
+'connect_channel_btn': {'en': 'Connect', 'hi': 'कनेक्ट करें', 'hinglish': 'Connect Karo', 'ta': 'இணைக்கவும்', 'bn': 'সংযুক্ত করুন', 'mr': 'कनेक्ट करा', 'ur': 'کنیکٹ کریں'},
+  
+'audit_copy_prompt_btn': {'en': 'Copy', 'hi': 'कॉपी करें', 'hinglish': 'Copy Karo', 'ta': 'நகலெடு', 'bn': 'কপি করুন', 'mr': 'कॉपी करा', 'ur': 'کاپی کریں'},
+'audit_open_gemini_btn': {'en': 'Gemini', 'hi': 'जेमिनी', 'hinglish': 'Gemini', 'ta': 'ஜெமினி', 'bn': 'জেমিনি', 'mr': 'जेमिनी', 'ur': 'جیمنی'},
+'audit_prompt_locked_label': {'en': 'Upgrade to unlock', 'hi': 'अनलॉक करने के लिए अपग्रेड करें', 'hinglish': 'Unlock karne ke liye Upgrade karo', 'ta': 'திறக்க அப்கிரேட் செய்யவும்', 'bn': 'আনলক করতে আপগ্রেড করুন', 'mr': 'अनलॉक करण्यासाठी अपग्रेड करा', 'ur': 'ان لاک کرنے کے لیے اپ گریڈ کریں'},
 
+'audit_copy_prompt_btn': {'en': 'Copy', 'hi': 'कॉपी करें', 'hinglish': 'Copy Karo', 'ta': 'நகலெடு', 'bn': 'কপি করুন', 'mr': 'कॉपी करा', 'ur': 'کاپی کریں'},
+'audit_open_gemini_btn': {'en': 'Gemini', 'hi': 'जेमिनी', 'hinglish': 'Gemini', 'ta': 'ஜெமினி', 'bn': 'জেমিনি', 'mr': 'जेमिनी', 'ur': 'جیمنی'},
+'audit_prompt_locked_label': {'en': 'Upgrade to unlock', 'hi': 'अनलॉक करने के लिए अपग्रेड करें', 'hinglish': 'Unlock karne ke liye Upgrade karo', 'ta': 'திறக்க அப்கிரேட் செய்யவும்', 'bn': 'আনলক করতে আপগ্রেড করুন', 'mr': 'अनलॉक करण्यासाठी अपग्रेड करा', 'ur': 'ان لاک کرنے کے لیے اپ گریڈ کریں'},
+
+'diamond_badge_popular': {'en': 'Popular', 'hi': 'लोकप्रिय', 'hinglish': 'Popular', 'ta': 'பிரபலமானது', 'bn': 'জনপ্রিয়', 'mr': 'लोकप्रिय', 'ur': 'مقبول'},
+'diamond_badge_best_value': {'en': 'Best Value', 'hi': 'सर्वश्रेष्ठ मूल्य', 'hinglish': 'Best Value', 'ta': 'சிறந்த மதிப்பு', 'bn': 'সেরা মূল্য', 'mr': 'सर्वोत्तम मूल्य', 'ur': 'بہترین قیمت'},
+'diamond_value_rate': {'en': '≈%d diamonds per ₹1', 'hi': '≈%d डायमंड प्रति ₹1', 'hinglish': '≈%d Diamond har ₹1 me', 'ta': '≈%d வைரங்கள் ₹1 க்கு', 'bn': '≈%d ডায়মন্ড প্রতি ₹1', 'mr': '≈%d डायमंड दर ₹1', 'ur': '≈%d ڈائمنڈ فی ₹1'},
+'diamond_feature_instant': {'en': 'Instant credit to your account', 'hi': 'आपके खाते में तुरंत क्रेडिट', 'hinglish': 'Aapke account me turant credit', 'ta': 'உங்கள் கணக்கில் உடனடி கிரெடிட்', 'bn': 'আপনার অ্যাকাউন্টে তাৎক্ষণিক ক্রেডিট', 'mr': 'तुमच्या खात्यात त्वरित क्रेडिट', 'ur': 'آپ کے اکاؤنٹ میں فوری کریڈٹ'},
+'diamond_enterprise_feature_1': {'en': 'Custom bulk pricing', 'hi': 'कस्टम बल्क प्राइसिंग', 'hinglish': 'Custom bulk pricing', 'ta': 'தனிப்பயன் மொத்த விலை', 'bn': 'কাস্টম বাল্ক প্রাইসিং', 'mr': 'कस्टम बल्क प्राइसिंग', 'ur': 'کسٹم بلک قیمت'},
+'diamond_enterprise_feature_2': {'en': 'Priority support', 'hi': 'प्राथमिकता सहायता', 'hinglish': 'Priority support', 'ta': 'முன்னுரிமை ஆதரவு', 'bn': 'অগ্রাধিকার সহায়তা', 'mr': 'प्राधान्य सहाय्य', 'ur': 'ترجیحی معاونت'},
+'diamond_enterprise_feature_3': {'en': 'Dedicated account manager', 'hi': 'समर्पित अकाउंट मैनेजर', 'hinglish': 'Dedicated account manager', 'ta': 'பிரத்யேக கணக்கு மேலாளர்', 'bn': 'নিবেদিত অ্যাকাউন্ট ম্যানেজার', 'mr': 'समर्पित खाते व्यवस्थापक', 'ur': 'مخصوص اکاؤنٹ منیجر'},
+'diamond_support_title': {'en': 'Need help? Email us:', 'hi': 'मदद चाहिए? ईमेल करें:', 'hinglish': 'Help chahiye? Email karo:', 'ta': 'உதவி வேண்டுமா? மின்னஞ்சல்:', 'bn': 'সাহায্য দরকার? ইমেইল করুন:', 'mr': 'मदत हवी? ईमेल करा:', 'ur': 'مدد چاہیے؟ ای میل کریں:'},
+'diamond_support_email_copied': {'en': 'Email copied to clipboard', 'hi': 'ईमेल क्लिपबोर्ड में कॉपी हो गया', 'hinglish': 'Email clipboard me copy ho gaya', 'ta': 'மின்னஞ்சல் நகலெடுக்கப்பட்டது', 'bn': 'ইমেইল ক্লিপবোর্ডে কপি হয়েছে', 'mr': 'ईमेल क्लिपबोर्डवर कॉपी झाला', 'ur': 'ای میل کلپ بورڈ میں کاپی ہو گیا'},
+
+
+'diamond_support_title': {'en': 'Tap to contact support', 'hi': 'सहायता के लिए टैप करें', 'hinglish': 'Support ke liye tap karo', 'ta': 'ஆதரவைத் தொடர்பு கொள்ள தட்டவும்', 'bn': 'সহায়তার জন্য ট্যাপ করুন', 'mr': 'सहाय्यासाठी टॅप करा', 'ur': 'مدد کے لیے ٹیپ کریں'},
+'diamond_support_error': {'en': 'Could not open email app', 'hi': 'ईमेल ऐप नहीं खुल पाया', 'hinglish': 'Email app open nahi ho paya', 'ta': 'மின்னஞ்சல் ஆப்பைத் திறக்க முடியவில்லை', 'bn': 'ইমেইল অ্যাপ খুলতে ব্যর্থ', 'mr': 'ईमेल अ‍ॅप उघडता आले नाही', 'ur': 'ای میل ایپ نہیں کھل سکی'},
     // ================= Profile screen: Creator OS + menu (Boss update, round 4) =================
     'creator_os_section': {'en': 'Creator OS', 'hi': 'क्रिएटर OS', 'hinglish': 'Creator OS', 'ta': 'கிரியேட்டர் OS', 'bn': 'ক্রিয়েটর OS', 'mr': 'क्रिएटर OS', 'ur': 'کریئٹر او ایس'},
     'menu_ai_ideas': {'en': 'AI Ideas', 'hi': 'AI आइडियाज़', 'hinglish': 'AI Ideas', 'ta': 'AI யோசனைகள்', 'bn': 'AI আইডিয়া', 'mr': 'AI आयडियाज', 'ur': 'اے آئی آئیڈیاز'},

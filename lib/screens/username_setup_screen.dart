@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_custom_tabs/flutter_custom_tabs.dart' as custom_tabs;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/language_provider.dart';
 import '../services/auth_provider.dart';
 import '../services/api_service.dart';
@@ -172,6 +174,77 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     );
   }
 
+  // Same Custom Tabs launcher profile_screen.dart's _launchOAuth() uses —
+  // kept consistent so every OAuth entry point in the app (Settings/Profile
+  // connect AND this first-run popup) opens the same in-app browser sheet
+  // instead of switching to an external browser app.
+  Future<void> _launchOAuth(String url) async {
+    await custom_tabs.launchUrl(
+      Uri.parse(url),
+      customTabsOptions: custom_tabs.CustomTabsOptions(
+        shareState: custom_tabs.CustomTabsShareState.off,
+        urlBarHidingEnabled: true,
+        showTitle: true,
+      ),
+      safariVCOptions: const custom_tabs.SafariViewControllerOptions(
+        barCollapsingEnabled: true,
+        dismissButtonStyle: custom_tabs.SafariViewControllerDismissButtonStyle.close,
+      ),
+    );
+  }
+
+  // ⚠️ NEW (Boss request — "welcome pop ke baad channel connect ka pop
+  // aaye aur bagal me skip ka option"): shown right after the welcome
+  // dialog. "Connect" kicks off the same YouTube OAuth flow used
+  // elsewhere in the app (GET /youtube/oauth/url -> Custom Tabs, same as
+  // profile_screen.dart's _connectYoutube); "Skip" just closes it — either
+  // way the flow continues to the idea popup next.
+  Future<void> _showChannelConnectDialog() async {
+    bool connecting = false;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Row(children: [
+            const Icon(Icons.link_rounded, color: AppColors.purple, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(context.tr('channel_connect_dialog_title'))),
+          ]),
+          content: Text(context.tr('channel_connect_dialog_body')),
+          actions: [
+            TextButton(
+              onPressed: connecting ? null : () => Navigator.pop(dialogContext),
+              child: Text(context.tr('skip')),
+            ),
+            ElevatedButton(
+              onPressed: connecting
+                  ? null
+                  : () async {
+                      setDialogState(() => connecting = true);
+                      try {
+                        final res = await ApiService.instance.getYoutubeOAuthUrl();
+                        final url = res['url'] as String?;
+                        if (url != null) {
+                          await _launchOAuth(url);
+                        }
+                      } catch (e) {
+                        if (mounted) showApiError(context, e);
+                      } finally {
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      }
+                    },
+              child: connecting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(context.tr('connect_channel_btn')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showWelcomeFlow() async {
     await showDialog(
       context: context,
@@ -194,6 +267,26 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     await _showReferralDialog();
     if (!mounted) return;
 
+    // ⚠️ NEW — Channel Connect step, added between Referral and the Idea
+    // popup per Boss's flow: Referral -> Welcome -> Channel Connect (+Skip)
+    // -> Idea popup -> Dashboard.
+    await _showChannelConnectDialog();
+    if (!mounted) return;
+
+    // Channel category isn't known synchronously here (connecting happens
+    // in an external browser tab, so there's no channel data back yet) —
+    // the popup falls back to a generic niche this one time. The
+    // dashboard's 24-hour recheck (see dashboard_screen.dart) will use the
+    // real connected channel's category for every subsequent refresh.
+    await showIdeaPopup(context);
+    if (!mounted) return;
+
+    // Stamp "now" as the last-shown time so the dashboard doesn't
+    // immediately show a second idea popup right after this one.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(kIdeasPopupLastShownKey, DateTime.now().millisecondsSinceEpoch);
+
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const DashboardScreen()));
   }
 

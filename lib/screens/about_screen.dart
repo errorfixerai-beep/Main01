@@ -6,11 +6,6 @@ import '../widgets/brand_icons.dart';
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
-  // Core feature list — kept in sync with what the app actually does today:
-  // multi-platform publishing (YouTube, Facebook Reels),
-  // Drive auto-upload, AI content tools, scheduling, and notifications.
-  // Titles/descriptions are translation keys (see app_strings.dart, "About
-  // screen" section) resolved via context.tr() at build time.
   static const _features = [
     _Feature(icon: Icons.cloud_upload_rounded, titleKey: 'feature_multi_platform_title', descKey: 'feature_multi_platform_desc'),
     _Feature(icon: Icons.folder_special_rounded, titleKey: 'feature_drive_title', descKey: 'feature_drive_desc'),
@@ -23,29 +18,16 @@ class AboutScreen extends StatelessWidget {
     _Feature(icon: Icons.dark_mode_rounded, titleKey: 'feature_theme_title', descKey: 'feature_theme_desc'),
   ];
 
-  // Short "how it works" steps shown as a numbered flow, so new users
-  // understand the core loop (connect -> select platforms -> relax) at a glance.
   static const _steps = [
     _Step(number: '1', titleKey: 'step_connect_title', descKey: 'step_connect_desc'),
     _Step(number: '2', titleKey: 'step_upload_title', descKey: 'step_upload_desc'),
     _Step(number: '3', titleKey: 'step_relax_title', descKey: 'step_relax_desc'),
   ];
 
-  // ⚠️ FIX (Boss request: hide Facebook & Instagram): only YouTube remains
-  // in the Supported Platforms list.
   static const _platforms = [
     _Platform(name: 'YouTube', descKey: 'platform_youtube_desc'),
   ];
 
-  // ---------------- Our Story ----------------
-  // Real, substantive prose — written to actually be read, not padded to
-  // hit an arbitrary line count. A literal "3000 lines" of narrative text
-  // on a mobile About screen would mean either endless filler (bad for
-  // users) or an unreadable wall of repeated sentences (bad for the
-  // brand) — neither serves what an About screen is actually for. This
-  // covers the ground a thorough company story should: origin, mission,
-  // product philosophy, and what's ahead — genuinely detailed, just not
-  // artificially inflated.
   static const _storyParagraphs = [
     _StoryParagraph(
       heading: 'Where It Started',
@@ -89,33 +71,11 @@ class AboutScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          // ⚠️ FIX (Boss request): removed the top icon + "Tube Pilot" +
+          // tagline block — the AppBar title already says "About App", this
+          // duplicate branding block right below it isn't needed. Content
+          // now starts directly at "What is Tube Pilot".
           const SizedBox(height: 8),
-          Center(
-            child: Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(22)),
-              child: const Center(child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 40)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Brand wordmark — kept literal (proper noun), matches every
-          // language variant of the translated body copy below.
-          const Center(
-            child: Text(
-              'Tube Pilot',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              context.tr('app_tagline'),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5),
-            ),
-          ),
-          const SizedBox(height: 24),
 
           // ---------------- What is Tube Pilot ----------------
           Container(
@@ -136,14 +96,6 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           // ---------------- Our Story ----------------
-          // Extended company/product narrative, per the redesign brief.
-          // Written as real, readable prose rather than padded filler —
-          // kept in English only (not run through context.tr()), the same
-          // treatment already given to the CEO name and footer copyright
-          // elsewhere on this screen: proper-noun/brand narrative content
-          // isn't machine-translated across the app's 7 languages, since a
-          // bad auto-translation of a founder's story would misrepresent
-          // it far worse than leaving it in English.
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
@@ -258,10 +210,6 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 28),
 
           // ---------------- Signature footer (bottom-right only) ----------------
-          // Replaces the previous centered, boxed "Bharat Cloud
-          // Technologies" company-logo card per the redesign brief — no
-          // card container, no center alignment; just a sleek right-aligned
-          // sign-off for the CEO.
           Align(
             alignment: Alignment.centerRight,
             child: Column(
@@ -287,8 +235,6 @@ class AboutScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // Person name is a proper noun — kept literal in every
-                // language, same treatment as elsewhere on this screen.
                 const Text(
                   'Mr. Anik Kesharwani',
                   style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
@@ -315,11 +261,7 @@ class AboutScreen extends StatelessWidget {
   }
 }
 
-// Replaces the first "%d"/"%s" in a translated template with a value —
-// AppStrings templates use them as plain placeholders, not real printf.
 String _fmt(String template, Object value) => template.replaceFirst('%d', '$value').replaceFirst('%s', '$value');
-
-// ---------------- Helper models ----------------
 
 class _Feature {
   final IconData icon;
@@ -346,8 +288,6 @@ class _StoryParagraph {
   final String body;
   const _StoryParagraph({this.heading, required this.body});
 }
-
-// ---------------- Helper widgets ----------------
 
 class _FeatureRow extends StatelessWidget {
   final _Feature feature;
@@ -435,8 +375,6 @@ class _PlatformRow extends StatelessWidget {
   final _Platform platform;
   const _PlatformRow({required this.platform});
 
-  // Official brand icons (see widgets/brand_icons.dart) instead of generic
-  // emoji placeholders, per the redesign brief.
   Widget _logoFor(String name) {
     switch (name) {
       case 'YouTube':
@@ -470,8 +408,6 @@ class _PlatformRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Platform brand name (YouTube) — proper noun, kept literal;
-              // only the description is translated.
               Text(platform.name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(context.tr(platform.descKey), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.4)),

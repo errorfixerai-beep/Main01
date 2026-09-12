@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
@@ -19,6 +20,21 @@ import '../providers/language_provider.dart';
 // CFCallback interface — setCallback() just takes two plain function
 // references matching (String orderId) and (CFErrorResponse, String
 // orderId). cfenums/cfexceptions also live under utils/, not api/.
+//
+// ⚠️ BOSS UPDATE (this revision):
+// 1. Removed the "TEST MODE — Sandbox" banner entirely. Backend already
+//    switches live/sandbox purely via its own .env (CASHFREE_ENV) — no
+//    frontend rebuild needed either way — so a permanent on-screen banner
+//    isn't required any more; the app just quietly uses whatever
+//    environment the backend reports.
+// 2. Package cards upgraded: badges (Popular / Best Value), a feature
+//    checklist line, and a "diamonds per ₹1" value line so the user can
+//    actually see what they're getting, not just a bare price.
+// 3. Pricing (₹10→99, ₹50→299, ₹100→599, ₹200→799) lives on the BACKEND
+//    (this screen only renders whatever GET /diamonds/packages returns) —
+//    see the note at the bottom of this file for what needs to change
+//    server-side.
+// 4. Enterprise card upgraded with a feature list + support email.
 class DiamondStoreScreen extends StatefulWidget {
   const DiamondStoreScreen({super.key});
   @override
@@ -26,6 +42,8 @@ class DiamondStoreScreen extends StatefulWidget {
 }
 
 class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
+  static const String supportEmail = 'support@tubepilot.com';
+
   List<dynamic> packages = [];
   int balance = 0;
   bool loading = true;
@@ -35,6 +53,9 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
   // .env change (CASHFREE_ENV=PRODUCTION + live keys + restart) with zero
   // Flutter code changes or rebuilds required. Defaults to PRODUCTION as a
   // safe fallback if the field is ever missing from an older backend.
+  // (Kept — still needed to build the correct CFSessionBuilder environment
+  // — only the on-screen "TEST MODE" banner that used to read this was
+  // removed per boss's request.)
   CFEnvironment _cashfreeEnvironment = CFEnvironment.PRODUCTION;
   // ⚠️ FIX ("Buy fails to trigger payment screen"): doPayment() hands off
   // to the native Cashfree checkout Activity/ViewController and does NOT
@@ -52,6 +73,18 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
   static const _paymentCallbackTimeout = Duration(seconds: 90);
 
   final CFPaymentGatewayService _cfPaymentGatewayService = CFPaymentGatewayService();
+
+  // ⚠️ BOSS UPDATE: tapping the enterprise card now opens the device's
+  // email app directly (via mailto:) addressed to support@tubepilot.com —
+  // the address itself is never shown as visible text anywhere on this
+  // screen, only used inside this link.
+  Future<void> _openSupportEmail() async {
+    final uri = Uri(scheme: 'mailto', path: supportEmail);
+    final opened = await launchUrl(uri);
+    if (!opened && mounted) {
+      showToast(context, context.tr('diamond_support_error'), isError: true);
+    }
+  }
 
   @override
   void initState() {
@@ -74,7 +107,8 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
         packages = pkgRes['packages'];
         balance = pkgRes['currentBalance'] ?? 0;
         // Backend reports 'SANDBOX' or 'PRODUCTION' — anything else/missing
-        // safely falls back to PRODUCTION.
+        // safely falls back to PRODUCTION. Still used for CFSessionBuilder
+        // below even though we no longer show a banner for it.
         _cashfreeEnvironment = (pkgRes['cashfreeEnvironment'] == 'SANDBOX')
             ? CFEnvironment.SANDBOX
             : CFEnvironment.PRODUCTION;
@@ -230,164 +264,291 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
         }
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: Text(context.tr('diamond_store_title')),
-        // Visible only when the backend is running in Sandbox — a plain,
-        // hard-to-miss signal that no real money is involved right now.
-        bottom: _cashfreeEnvironment == CFEnvironment.SANDBOX
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(28),
-                child: Container(
-                  width: double.infinity,
-                  color: AppColors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: const Text(
-                    '⚠️ TEST MODE — Sandbox, no real payment',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700),
+        // ⚠️ BOSS UPDATE: removed the SANDBOX "TEST MODE" bottom banner
+        // that used to live here. Backend controls live vs sandbox purely
+        // via its own .env — no frontend indicator needed, and no
+        // frontend change needed when boss flips the backend to live keys.
+        appBar: AppBar(
+          title: Text(context.tr('diamond_store_title')),
+        ),
+        body: loading
+            ? const LoadingView()
+            : ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text(context.tr('your_balance'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                      Text('💎 $balance', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    ]),
                   ),
-                ),
-              )
-            : null,
-      ),
-      body: loading
-          ? const LoadingView()
-          : ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text(context.tr('your_balance'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-                    Text('💎 $balance', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                  ]),
-                ),
-                const SizedBox(height: 20),
-                Text(context.tr('choose_package'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                Text(
-                  context.tr('diamond_store_description'),
-                  style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.4),
-                ),
-                const SizedBox(height: 14),
-                // ⚠️ UPDATE (Boss request): changed from a single-row
-                // horizontal scroll (which only showed 2 cards on screen at
-                // once, e.g. 10 & 50, with 100 & 200 hidden off to the
-                // side needing a swipe) to a 2-COLUMN GRID. Same card
-                // template, same _buy()/_payingDiamonds logic per card —
-                // only the layout changed, so ALL packages the backend
-                // sends (10, 50, 100, 200, or any future ones) are visible
-                // at once without scrolling sideways: 10 & 50 in the first
-                // row, 100 & 200 in the second row, etc.
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: packages.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.79,
+                  const SizedBox(height: 20),
+                  Text(context.tr('choose_package'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    context.tr('diamond_store_description'),
+                    style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, height: 1.4),
                   ),
-                  itemBuilder: (context, index) {
-                    final p = packages[index];
-                    final diamonds = p['diamonds'] as int;
-                    final isPaying = _payingDiamonds == diamonds;
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(14)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('💎', style: TextStyle(fontSize: 28)),
-                          const SizedBox(height: 8),
-                          Text(
-                            context.tr('diamonds_suffix').replaceAll('%d', '$diamonds'),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text('₹${p['priceINR']}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _payingDiamonds != null ? null : () => _buy(diamonds),
-                              child: isPaying
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : Text(context.tr('buy_btn')),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
-                // ⚠️ REMOVED (Boss request): "Have a Gift Code? Redeem it
-                // here" used to link out to GiftCodeScreen from this
-                // screen. Gift code redemption now lives on its own entry
-                // point in Profile & Settings, so this card was removed
-                // entirely to avoid a duplicate path into the same screen.
-                _enterpriseCard(),
-              ],
-            ),
+                  const SizedBox(height: 14),
+                  // Same 2-column grid layout as before — only the card
+                  // template itself (_packageCard) got richer.
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: packages.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.72,
+                    ),
+                    itemBuilder: (context, index) => _packageCard(context, index),
+                  ),
+                  const SizedBox(height: 24),
+                  _enterpriseCard(),
+                ],
+              ),
       ),
     );
   }
 
-  // ⚠️ NEW (Boss request — "enterprises rakho"): static bulk/custom
-  // diamonds card. The numbered packages above (₹10 / ₹50 / ₹100 / ₹200
-  // etc.) come entirely from GET /diamonds/packages on the backend — this
-  // card is intentionally NOT one of those, since a large custom/bulk
-  // order isn't a fixed SKU. It just opens a contact channel instead of a
-  // purchase flow.
-  Widget _enterpriseCard() {
+  // ⚠️ UPGRADED CARD (Boss request — "card ko upgrade karo, text add karo
+  // taki pata chale user ko kya milega"). Same border/color language as
+  // before (context.surfaces.border, same radius) — nothing about the
+  // app's color scheme changed, only more information is shown:
+  //   • a badge ("Popular" on the 2nd cheapest pack, "Best Value" on the
+  //     priciest pack — a common, easy-to-scan pattern) when there are
+  //     enough packages for it to make sense
+  //   • the diamond amount + price (as before)
+  //   • a "≈N💎 per ₹1" line so the user can actually compare value
+  //   • a one-line feature checklist ("Instant credit") so it's obvious
+  //     what buying gets them, not just a bare number
+  Widget _packageCard(BuildContext context, int index) {
+    final p = packages[index];
+    final diamonds = p['diamonds'] as int;
+    final price = (p['priceINR'] as num).toDouble();
+    final isPaying = _payingDiamonds == diamonds;
+    final perRupee = price > 0 ? (diamonds / price) : 0;
+
+    // Simple, robust badge logic: with 3+ packages, tag the second-cheapest
+    // as "Popular" and the most expensive as "Best Value". Doesn't break
+    // if the backend ever ships fewer/more packages — badges just don't
+    // show.
+    String? badgeText;
+    Color? badgeColor;
+    if (packages.length >= 3) {
+      if (index == packages.length - 1) {
+        badgeText = context.tr('diamond_badge_best_value');
+        badgeColor = AppColors.green;
+      } else if (index == 1) {
+        badgeText = context.tr('diamond_badge_popular');
+        badgeColor = Theme.of(context).colorScheme.primary;
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 20, 14, 14),
       decoration: BoxDecoration(
-        gradient: AppColors.gradient,
-        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: badgeText != null ? (badgeColor ?? context.surfaces.border) : context.surfaces.border, width: badgeText != null ? 1.4 : 1),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.workspaces_rounded, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('diamond_enterprise_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
-                const SizedBox(height: 2),
-                Text(context.tr('diamond_enterprise_subtitle'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              ],
+          if (badgeText != null)
+            Positioned(
+              top: -20,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(999)),
+                  child: Text(
+                    badgeText.toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.3),
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => showToast(context, context.tr('diamond_enterprise_toast')),
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.18),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
-            child: Text(context.tr('diamond_enterprise_cta'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('💎', style: TextStyle(fontSize: 28)),
+              const SizedBox(height: 6),
+              Text(
+                context.tr('diamonds_suffix').replaceAll('%d', '$diamonds'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text('₹${p['priceINR']}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+              const SizedBox(height: 6),
+              if (perRupee > 0)
+                Text(
+                  context.tr('diamond_value_rate').replaceAll('%d', perRupee.toStringAsFixed(1)),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5, fontStyle: FontStyle.italic),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bolt_rounded, size: 13, color: AppColors.green),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      context.tr('diamond_feature_instant'),
+                      style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _payingDiamonds != null ? null : () => _buy(diamonds),
+                  child: isPaying
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(context.tr('buy_btn')),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  // ⚠️ UPGRADED (Boss request — "enterprise wale card ko bhi upgrade karo,
+  // gmail lagao"): same gradient/color as before (AppColors.gradient) —
+  // just more information: a short feature list plus a tappable support
+  // email row. No new package for it — this stays a "contact us" card,
+  // not a purchase flow, same as before.
+  Widget _enterpriseCard() {
+    // ⚠️ BOSS UPDATE: the whole card is now one tap target that opens the
+    // device's email app (mailto:) straight to support@tubepilot.com. The
+    // CTA button no longer just shows a toast — it (and tapping anywhere
+    // else on the card) opens Gmail/Mail app directly. The email address
+    // itself is never printed as visible text anywhere on this card, or
+    // anywhere else on this screen.
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: _openSupportEmail,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: AppColors.gradient,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.workspaces_rounded, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(context.tr('diamond_enterprise_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                      const SizedBox(height: 2),
+                      Text(context.tr('diamond_enterprise_subtitle'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.mail_outline_rounded, color: Colors.white, size: 14),
+                      const SizedBox(width: 5),
+                      Text(context.tr('diamond_enterprise_cta'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _enterpriseFeatureRow(context.tr('diamond_enterprise_feature_1')),
+                const SizedBox(height: 6),
+                _enterpriseFeatureRow(context.tr('diamond_enterprise_feature_2')),
+                const SizedBox(height: 6),
+                _enterpriseFeatureRow(context.tr('diamond_enterprise_feature_3')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.18)),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.touch_app_rounded, color: Colors.white70, size: 13),
+                const SizedBox(width: 6),
+                Text(
+                  context.tr('diamond_support_title'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _enterpriseFeatureRow(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 14),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12.5))),
+      ],
+    );
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// ⚠️ BOSS — BACKEND UPDATE STILL NEEDED (I don't have that file yet):
+//
+// This screen never hardcodes prices — it just renders whatever
+// GET /diamonds/packages sends back (see `packages = pkgRes['packages']`
+// in _load() above). So to make the new pricing live:
+//   ₹10  → 99 diamonds
+//   ₹50  → 299 diamonds
+//   ₹100 → 599 diamonds
+//   ₹200 → 799 diamonds
+// you only need to edit the backend route/config that defines that
+// packages array (likely something like routes/diamonds.js or a
+// config/packages file) — zero Flutter changes needed for that part.
+//
+// Please send me that backend file/path and I'll update the numbers
+// there too.
+// ─────────────────────────────────────────────────────────────────────────

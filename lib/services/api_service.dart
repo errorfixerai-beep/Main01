@@ -157,6 +157,26 @@ class ApiService {
   Future<Map<String, dynamic>> getYoutubeChannel() => _request('/youtube/channel');
   Future<Map<String, dynamic>> disconnectYoutube() => _request('/youtube/disconnect', method: 'DELETE');
 
+  // ⚠️ NEW (Boss request — Option B, "Apply to Video" should also reach
+  // videos already published on the connected YouTube channel, not just
+  // ones TubePilot itself uploaded/queued): real channel videos straight
+  // from YouTube (GET /api/youtube/my-videos) and a direct write to an
+  // already-live video's title/description on YouTube itself
+  // (PATCH /api/youtube/my-videos/:videoId) — separate from
+  // updateVideoMetadata() below, which only touches TubePilot's own DB
+  // record for videos it uploaded itself.
+  Future<Map<String, dynamic>> getMyYoutubeVideos() => _request('/youtube/my-videos');
+
+  Future<Map<String, dynamic>> updateYoutubeVideoMetadata(
+    String videoId, {
+    String? title,
+    String? description,
+  }) =>
+      _request('/youtube/my-videos/$videoId', method: 'PATCH', body: {
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+      });
+
   // ---------------- Meta (Facebook + Instagram) ----------------
   // Since a Facebook Page's linked Instagram Business Account is
   // auto-fetched by the backend at connect/select-page time, one OAuth

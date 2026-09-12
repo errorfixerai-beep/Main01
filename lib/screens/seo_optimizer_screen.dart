@@ -8,6 +8,14 @@ import '../widgets/custom_dropdown.dart';
 import '../widgets/apply_to_video_sheet.dart';
 
 /// Screen 2/7 — POST /api/ai/seo-score.
+///
+/// ⚠️ FIX (Boss request — "dropdown sahi se nahin ho raha, ise sahi
+/// karo"): Platform was a `CustomDropdown` (DropdownButtonFormField) whose
+/// opened menu is a separate Overlay that can render as a top-overlapping
+/// popup (see reported screenshot). Swapped to the same PickerField +
+/// bottom-sheet pattern already used on the AI Ideas screen — a fixed,
+/// full-width sheet that slides up from the bottom instead of overlaying
+/// the field.
 class SeoOptimizerScreen extends StatefulWidget {
   const SeoOptimizerScreen({super.key});
   @override
@@ -16,10 +24,9 @@ class SeoOptimizerScreen extends StatefulWidget {
 
 class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
   // ⚠️ [ANIK REQUEST - YouTube-only launch]: Instagram/Facebook options
-  // hidden from the platform dropdown — Meta business verification pending.
-  // CustomDropdown builds its items from _platforms.keys, so removing
-  // entries here is enough; _platform state and the SEO score API call
-  // (platform: _platform) are untouched. Uncomment to restore.
+  // hidden from the platform picker — Meta business verification pending.
+  // _platform state and the SEO score API call (platform: _platform) are
+  // untouched. Uncomment to restore.
   static const _platforms = {
     'youtube': 'platform_youtube_label',
     // 'instagram': 'platform_instagram_label',
@@ -40,6 +47,51 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
     _descCtrl.dispose();
     _tagsCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPlatform() async {
+    final options = _platforms.keys.toList();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 12), decoration: BoxDecoration(color: sheetContext.surfaces.border, borderRadius: BorderRadius.circular(999))),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(context.tr('seo_platform_label'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (_, i) {
+                    final key = options[i];
+                    final isSelected = key == _platform;
+                    return ListTile(
+                      title: Text(context.tr(_platforms[key]!), style: TextStyle(fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500)),
+                      trailing: isSelected ? const Icon(Icons.check_rounded, color: AppColors.purple) : null,
+                      onTap: () => Navigator.of(sheetContext).pop(key),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) setState(() => _platform = picked);
   }
 
   Future<void> _analyze() async {
@@ -136,11 +188,9 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
         children: [
           Text(context.tr('seo_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          CustomDropdown<String>(
-            value: _platform,
-            items: _platforms.keys.toList(),
-            labelBuilder: (v) => context.tr(_platforms[v] ?? v),
-            onChanged: (v) => setState(() => _platform = v ?? _platform),
+          PickerField(
+            value: context.tr(_platforms[_platform] ?? _platform),
+            onTap: _pickPlatform,
             prefixIcon: const Icon(Icons.hub_rounded, size: 18, color: AppColors.purple),
           ),
           const SizedBox(height: 16),

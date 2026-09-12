@@ -160,6 +160,21 @@ class _UpcomingScreenState extends State<UpcomingScreen> with SingleTickerProvid
     return c.tr('uc_untitled_upload');
   }
 
+  // ⚠️ FIX (Boss request — "video upload ho jaane ke baad real thumbnail
+  // nahin dikhta"): the card used to always render a generic movie-icon
+  // box, ignoring the thumbnailUrl the backend already returns per
+  // platform target. This pulls the same field dashboard_screen.dart's
+  // _extractPlatformEvents() already reads (p['thumbnailUrl']) — prefers
+  // whichever platform entry has a non-empty one.
+  String? _videoThumbnailUrl(dynamic v) {
+    final platforms = (v['platforms'] as List?) ?? [];
+    final withThumb = platforms.firstWhere(
+      (p) => (p['thumbnailUrl'] ?? '').toString().isNotEmpty,
+      orElse: () => null,
+    );
+    return withThumb != null ? withThumb['thumbnailUrl'].toString() : null;
+  }
+
   List<dynamic> _filtered(List<dynamic> videos) {
     return videos.where((v) {
       if (_searchQuery.isNotEmpty && !_videoDisplayTitle(context, v).toLowerCase().contains(_searchQuery.toLowerCase())) {
@@ -258,6 +273,7 @@ class _UpcomingScreenState extends State<UpcomingScreen> with SingleTickerProvid
                           itemBuilder: (_, i) {
                             final v = videos[i];
                             final platforms = (v['platforms'] as List?) ?? [];
+                            final thumbnailUrl = _videoThumbnailUrl(v);
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(12),
@@ -267,10 +283,15 @@ class _UpcomingScreenState extends State<UpcomingScreen> with SingleTickerProvid
                                 children: [
                                   Row(
                                     children: [
-                                      Container(
-                                        width: 54, height: 54,
-                                        decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(10)),
-                                        child: const Center(child: Icon(Icons.movie_outlined, size: 22)),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                                            ? Image.network(
+                                                thumbnailUrl,
+                                                width: 54, height: 54, fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => _thumbnailFallback(context),
+                                              )
+                                            : _thumbnailFallback(context),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
@@ -347,6 +368,15 @@ class _UpcomingScreenState extends State<UpcomingScreen> with SingleTickerProvid
           ),
         ],
       ),
+    );
+  }
+
+  Widget _thumbnailFallback(BuildContext context) {
+    return Container(
+      width: 54, height: 54,
+      alignment: Alignment.center,
+      color: context.surfaces.card2,
+      child: const Icon(Icons.movie_outlined, size: 22),
     );
   }
 

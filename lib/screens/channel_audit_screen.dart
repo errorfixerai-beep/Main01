@@ -1,9 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import 'upload_screen.dart';
+import 'diamond_store_screen.dart';
 
 /// Screen 6/7 — GET /api/analytics/audit.
 class ChannelAuditScreen extends StatefulWidget {
@@ -63,6 +66,29 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     return AppColors.red;
   }
 
+  void _goToUpgrade() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen()));
+  }
+
+  IconData _iconForType(String type) {
+    switch (type) {
+      case 'description':
+        return Icons.description_outlined;
+      case 'banner':
+        return Icons.image_outlined;
+      case 'title':
+        return Icons.badge_outlined;
+      case 'engagement':
+        return Icons.favorite_outline_rounded;
+      case 'uploads':
+        return Icons.cloud_upload_outlined;
+      case 'shorts':
+        return Icons.movie_filter_outlined;
+      default:
+        return Icons.tips_and_updates_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,7 +112,8 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
 
   Widget _buildAudit(Map<String, dynamic> audit) {
     final score = _healthScore(audit);
-    final recommendations = (audit['recommendations'] as List? ?? []).cast<String>();
+    final color = _healthColor(score);
+    final recommendations = (audit['recommendations'] as List? ?? []).cast<Map<String, dynamic>>();
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -97,10 +124,15 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
           decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(20)),
           child: Column(children: [
             Text(context.tr('audit_channel_health'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text('$score/100', style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900)),
             const SizedBox(height: 4),
-            AppBadge(label: _healthLabel(score), color: _healthColor(score)),
+            // ⚠️ FIX (Boss request — "bada sa number nahi, graph"): the
+            // plain "80/100" text is replaced with a donut/gauge chart
+            // (fl_chart PieChart, already a dependency — used elsewhere in
+            // analytics_screen.dart's trend chart), score shown as the
+            // filled arc + number in the center.
+            _healthGauge(score, color),
+            const SizedBox(height: 4),
+            AppBadge(label: _healthLabel(score), color: color),
           ]),
         ),
         const SizedBox(height: 20),
@@ -127,30 +159,162 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
         const SizedBox(height: 24),
         Text(context.tr('audit_recommendations'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
-        ...recommendations.map((r) => Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(14)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.tips_and_updates_rounded, color: AppColors.purple, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(r, style: const TextStyle(fontSize: 13, height: 1.4))),
-                  ]),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UploadScreen())),
-                      icon: const Icon(Icons.upload_rounded, size: 15),
-                      label: Text(context.tr('audit_upload_now_btn')),
-                    ),
-                  ),
-                ],
-              ),
-            )),
+        ...recommendations.map((r) => _recommendationCard(r)),
       ],
+    );
+  }
+
+  Widget _healthGauge(int score, Color color) {
+    return SizedBox(
+      height: 150,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          PieChart(
+            PieChartData(
+              startDegreeOffset: -90,
+              sectionsSpace: 0,
+              centerSpaceRadius: 52,
+              sections: [
+                PieChartSectionData(value: score.toDouble(), color: Colors.white, radius: 20, showTitle: false),
+                PieChartSectionData(value: (100 - score).toDouble(), color: Colors.white.withValues(alpha: 0.20), radius: 20, showTitle: false),
+              ],
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$score', style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white)),
+              Text('/100', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12.5, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recommendationCard(Map<String, dynamic> rec) {
+    final type = rec['type'] as String? ?? '';
+    final message = rec['message'] as String? ?? '';
+    final prompt = rec['prompt'] as String?;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(_iconForType(type), color: AppColors.purple, size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message, style: const TextStyle(fontSize: 13, height: 1.4))),
+          ]),
+
+          // ⚠️ NEW (Boss request — monetization gate): if this gap has a
+          // ready-made AI prompt, show a blurred/truncated preview of it
+          // plus Copy + Gemini buttons. BOTH buttons deliberately do NOT
+          // perform their literal action (copy to clipboard / open
+          // Gemini) — tapping either sends the user straight to the
+          // Diamond Store, since the actual usable prompt is a paid
+          // feature (₹10/month plan, per Boss). This is intentional
+          // product behaviour, not a bug.
+          if (prompt != null && prompt.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _promptPreview(prompt),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _goToUpgrade,
+                  icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.diamond),
+                  label: Text(context.tr('audit_copy_prompt_btn')),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _goToUpgrade,
+                  // "Real icon" per Boss request — Gemini's own logo
+                  // asset (add assets/gemini_icon.png + register it in
+                  // pubspec.yaml). Falls back to a sparkle icon if the
+                  // asset is missing so the app never crashes over a
+                  // missing image file.
+                  icon: Image.asset(
+                    'assets/gemini_icon.png',
+                    width: 16,
+                    height: 16,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.auto_awesome_rounded, size: 15),
+                  ),
+                  label: Text(context.tr('audit_open_gemini_btn')),
+                ),
+              ),
+            ]),
+          ] else if (type == 'uploads' || type == 'shorts') ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UploadScreen())),
+                icon: const Icon(Icons.upload_rounded, size: 15),
+                label: Text(context.tr('audit_upload_now_btn')),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Shows only a truncated, blurred slice of the prompt with a fade + lock
+  // badge on top — enough to prove a real, specific prompt exists for this
+  // gap, not enough to actually read/use it for free.
+  Widget _promptPreview(String prompt) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(10)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 44),
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 2.4, sigmaY: 2.4),
+                child: Text(
+                  prompt,
+                  style: TextStyle(fontSize: 12, color: context.surfaces.textDim, height: 1.4),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, context.surfaces.card2.withValues(alpha: 0.92)],
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_rounded, size: 13, color: AppColors.diamond),
+                    const SizedBox(width: 4),
+                    Text(
+                      context.tr('audit_prompt_locked_label'),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.diamond),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
