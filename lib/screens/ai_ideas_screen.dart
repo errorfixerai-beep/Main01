@@ -31,6 +31,11 @@ import '../widgets/custom_dropdown.dart';
 /// same family as pickers used elsewhere in the app) — a fixed, full-width
 /// sheet has none of that overlay-positioning risk and matches the rest
 /// of the app's picker UX.
+///
+/// ⚠️ FIX (Boss correction — "Android OS bar upar aa jata hai"): Scaffold's
+/// body was a bare ListView with no SafeArea, so the bottom system
+/// navigation bar / gesture inset could overlap the last content on
+/// devices with 3-button nav. Wrapped the ListView in a SafeArea.
 class AiIdeasScreen extends StatefulWidget {
   const AiIdeasScreen({super.key});
   @override
@@ -161,111 +166,113 @@ class _AiIdeasScreenState extends State<AiIdeasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('ai_ideas_title'))),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(context.tr('ai_ideas_niche_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          PickerField(
-            value: context.tr(_nicheKey),
-            onTap: _pickNiche,
-            prefixIcon: const Icon(Icons.category_rounded, size: 18, color: AppColors.purple),
-          ),
-          const SizedBox(height: 16),
-          Text(context.tr('ai_ideas_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          PickerField(
-            value: context.tr(_platforms[_platform]!),
-            onTap: _pickPlatform,
-            prefixIcon: const Icon(Icons.hub_rounded, size: 18, color: AppColors.purple),
-          ),
-          const SizedBox(height: 22),
-          GradientButton(label: context.tr('ai_ideas_generate_btn'), icon: Icons.auto_awesome_rounded, loading: _loading, onPressed: _generate),
-          const SizedBox(height: 24),
-          if (!_loading && _ideas.isEmpty && _error == null)
-            EmptyView(message: context.tr('ai_ideas_empty_state'), icon: Icons.lightbulb_outline_rounded),
-          ..._ideas.asMap().entries.map((entry) {
-            final i = entry.key;
-            final idea = entry.value;
-            final score = (idea['viralScore'] as num?)?.toInt() ?? 0;
-            final expanded = _expanded.contains(i);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(idea['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
-                    ),
-                    const SizedBox(width: 8),
-                    AppBadge(label: context.tr(_platforms[_platform]!), color: AppColors.purple),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Icon(Icons.local_fire_department_rounded, size: 16, color: _scoreColor(score)),
-                    const SizedBox(width: 5),
-                    Text(context.tr('ai_ideas_viral_score'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
-                    const Spacer(),
-                    Text('$score/100', style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.w800, fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: score / 100,
-                      minHeight: 6,
-                      backgroundColor: context.surfaces.border,
-                      valueColor: AlwaysStoppedAnimation(_scoreColor(score)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('"${idea['hook'] ?? ''}"', style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13.5)),
-                  const SizedBox(height: 6),
-                  Text(idea['description'] ?? '', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-                  if (expanded && (idea['script'] ?? '').toString().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(12)),
-                      child: Text(idea['script'], style: const TextStyle(fontSize: 13, height: 1.5)),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    TextButton.icon(
-                      onPressed: () => setState(() => expanded ? _expanded.remove(i) : _expanded.add(i)),
-                      icon: Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18),
-                      label: Text(expanded ? context.tr('ai_ideas_hide_script') : context.tr('ai_ideas_full_script')),
-                    ),
-                    const Spacer(),
-                    // ⚠️ FIX (Boss correction — "copy button ka background
-                    // nahi hona chahiye"): outlined style, no fill —
-                    // purple border + purple icon/label. Same clipboard
-                    // action as before, just the honest "Copy" look.
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        final text = '${idea['title']}\n\n${idea['script'] ?? idea['description']}';
-                        Clipboard.setData(ClipboardData(text: text));
-                        showToast(context, context.tr('ai_ideas_copied_toast'), isSuccess: true);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.purple,
-                        side: const BorderSide(color: AppColors.purple),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(context.tr('ai_ideas_niche_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            PickerField(
+              value: context.tr(_nicheKey),
+              onTap: _pickNiche,
+              prefixIcon: const Icon(Icons.category_rounded, size: 18, color: AppColors.purple),
+            ),
+            const SizedBox(height: 16),
+            Text(context.tr('ai_ideas_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            PickerField(
+              value: context.tr(_platforms[_platform]!),
+              onTap: _pickPlatform,
+              prefixIcon: const Icon(Icons.hub_rounded, size: 18, color: AppColors.purple),
+            ),
+            const SizedBox(height: 22),
+            GradientButton(label: context.tr('ai_ideas_generate_btn'), icon: Icons.auto_awesome_rounded, loading: _loading, onPressed: _generate),
+            const SizedBox(height: 24),
+            if (!_loading && _ideas.isEmpty && _error == null)
+              EmptyView(message: context.tr('ai_ideas_empty_state'), icon: Icons.lightbulb_outline_rounded),
+            ..._ideas.asMap().entries.map((entry) {
+              final i = entry.key;
+              final idea = entry.value;
+              final score = (idea['viralScore'] as num?)?.toInt() ?? 0;
+              final expanded = _expanded.contains(i);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text(idea['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
                       ),
-                      icon: const Icon(Icons.copy_rounded, size: 16),
-                      label: Text(context.tr('ai_ideas_copy_btn')),
+                      const SizedBox(width: 8),
+                      AppBadge(label: context.tr(_platforms[_platform]!), color: AppColors.purple),
+                    ]),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Icon(Icons.local_fire_department_rounded, size: 16, color: _scoreColor(score)),
+                      const SizedBox(width: 5),
+                      Text(context.tr('ai_ideas_viral_score'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                      const Spacer(),
+                      Text('$score/100', style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.w800, fontSize: 13)),
+                    ]),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: score / 100,
+                        minHeight: 6,
+                        backgroundColor: context.surfaces.border,
+                        valueColor: AlwaysStoppedAnimation(_scoreColor(score)),
+                      ),
                     ),
-                  ]),
-                ],
-              ),
-            );
-          }),
-        ],
+                    const SizedBox(height: 12),
+                    Text('"${idea['hook'] ?? ''}"', style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13.5)),
+                    const SizedBox(height: 6),
+                    Text(idea['description'] ?? '', style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+                    if (expanded && (idea['script'] ?? '').toString().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(12)),
+                        child: Text(idea['script'], style: const TextStyle(fontSize: 13, height: 1.5)),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      TextButton.icon(
+                        onPressed: () => setState(() => expanded ? _expanded.remove(i) : _expanded.add(i)),
+                        icon: Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18),
+                        label: Text(expanded ? context.tr('ai_ideas_hide_script') : context.tr('ai_ideas_full_script')),
+                      ),
+                      const Spacer(),
+                      // ⚠️ FIX (Boss correction — "copy button ka background
+                      // nahi hona chahiye"): outlined style, no fill —
+                      // purple border + purple icon/label. Same clipboard
+                      // action as before, just the honest "Copy" look.
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          final text = '${idea['title']}\n\n${idea['script'] ?? idea['description']}';
+                          Clipboard.setData(ClipboardData(text: text));
+                          showToast(context, context.tr('ai_ideas_copied_toast'), isSuccess: true);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.purple,
+                          side: const BorderSide(color: AppColors.purple),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: Text(context.tr('ai_ideas_copy_btn')),
+                      ),
+                    ]),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

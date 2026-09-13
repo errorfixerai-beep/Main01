@@ -23,6 +23,12 @@ import '../providers/language_provider.dart';
 /// liability, not a convenience. Section headers use context.tr() where
 /// short, generic UI chrome is involved (back button, screen title); the
 /// legal body text itself does not.
+///
+/// ⚠️ FIX (Boss request): last section and footer text were being covered
+/// by the device's bottom navigation bar. Body is now wrapped in a
+/// bottom-only SafeArea, plus extra bottom padding on the ListView, so the
+/// final section and the "Questions about this policy" line always clear
+/// the system nav bar / gesture area on every device.
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 
@@ -32,76 +38,79 @@ class PrivacyPolicyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('privacy_policy'))),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Tube Pilot Privacy Policy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text('Last updated: $_lastUpdated', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
-                const SizedBox(height: 12),
-                Text(
-                  // ⚠️ FIX (Boss request: hide Facebook & Instagram):
-                  // reference to connecting Facebook/Instagram accounts removed.
-                  'This policy explains, in detail, what Tube Pilot ("the app", "we", "us") collects, why, how it is stored and protected, '
-                  'and what rights you have over it — across every part of the product: connecting your YouTube account, uploading and '
-                  'scheduling video content, and purchasing diamonds. If any section is unclear, Section 6 explains how to reach support '
-                  'directly.',
-                  style: TextStyle(color: context.surfaces.textDim, fontSize: 13, height: 1.5),
-                ),
-              ],
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + MediaQuery.of(context).padding.bottom),
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Tube Pilot Privacy Policy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 6),
+                  Text('Last updated: $_lastUpdated', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                  const SizedBox(height: 12),
+                  Text(
+                    // ⚠️ FIX (Boss request: hide Facebook & Instagram):
+                    // reference to connecting Facebook/Instagram accounts removed.
+                    'This policy explains, in detail, what Tube Pilot ("the app", "we", "us") collects, why, how it is stored and protected, '
+                    'and what rights you have over it — across every part of the product: connecting your YouTube account, uploading and '
+                    'scheduling video content, and purchasing diamonds. If any section is unclear, Section 6 explains how to reach support '
+                    'directly.',
+                    style: TextStyle(color: context.surfaces.textDim, fontSize: 13, height: 1.5),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          _PolicySection(
-            number: '1',
-            title: 'OAuth 2.0 Authorization — YouTube',
-            initiallyExpanded: true,
-            body: _section1,
-          ),
-          _PolicySection(
-            number: '2',
-            title: 'Data Storage, Token Lifecycle & Auto-Revocation',
-            body: _section2,
-          ),
-          _PolicySection(
-            number: '3',
-            title: 'Video Processing Pipeline',
-            body: _section3,
-          ),
-          _PolicySection(
-            number: '4',
-            title: 'Payment Security & Cashfree Compliance',
-            body: _section4,
-          ),
-          _PolicySection(
-            number: '5',
-            title: 'Your Rights: Access, Correction & Erasure',
-            body: _section5,
-          ),
-          _PolicySection(
-            number: '6',
-            title: 'Disclaimers & Support Escalation',
-            body: _section6,
-          ),
-
-          const SizedBox(height: 20),
-          Center(
-            child: Text(
-              'Questions about this policy can be sent through Help & Support in your Profile.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5),
+            _PolicySection(
+              number: '1',
+              title: 'OAuth 2.0 Authorization — YouTube',
+              initiallyExpanded: true,
+              body: _section1,
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
+            _PolicySection(
+              number: '2',
+              title: 'Data Storage, Token Lifecycle & Auto-Revocation',
+              body: _section2,
+            ),
+            _PolicySection(
+              number: '3',
+              title: 'Video Processing Pipeline',
+              body: _section3,
+            ),
+            _PolicySection(
+              number: '4',
+              title: 'Payment Security & Cashfree Compliance',
+              body: _section4,
+            ),
+            _PolicySection(
+              number: '5',
+              title: 'Your Rights: Access, Correction & Erasure',
+              body: _section5,
+            ),
+            _PolicySection(
+              number: '6',
+              title: 'Disclaimers & Support Escalation',
+              body: _section6,
+            ),
+
+            const SizedBox(height: 20),
+            Center(
+              child: Text(
+                'Questions about this policy can be sent through Help & Support in your Profile.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }

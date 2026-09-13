@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 /// dependency needed) — used everywhere we previously used emoji (📺 📘 📁)
 /// for platform logos, so YouTube / Facebook / Drive always render as their
 /// actual brand mark instead of a generic emoji glyph.
+///
+/// ⚠️ UPDATE (Boss request): added TwitterIcon (current "X" wordmark, since
+/// that's the platform's real current logo) and LinkedinIcon, so the About
+/// screen's social-links row can use real brand marks for all four
+/// platforms (YouTube, Instagram, Twitter/X, LinkedIn) instead of generic
+/// Material icons.
 
 class YoutubeIcon extends StatelessWidget {
   final double size;
@@ -210,6 +216,118 @@ class _DrivePainter extends CustomPainter {
       ..lineTo(w * 0.37, h * 0.68)
       ..close();
     canvas.drawPath(bottom, Paint()..color = const Color(0xFF2196F3));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Twitter / X — current real wordmark is the black square with a white
+/// "X" mark (Twitter's own current branding, not the legacy bird), drawn
+/// as two crossing strokes so it matches the platform's actual present-day
+/// logo rather than an outdated one.
+class TwitterIcon extends StatelessWidget {
+  final double size;
+  const TwitterIcon({super.key, this.size = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _TwitterPainter()),
+    );
+  }
+}
+
+class _TwitterPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, w, h),
+      Radius.circular(w * 0.24),
+    );
+    canvas.drawRRect(rrect, Paint()..color = Colors.black);
+
+    final strokeWidth = w * 0.11;
+    final strokePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(Offset(w * 0.30, h * 0.28), Offset(w * 0.70, h * 0.72), strokePaint);
+    canvas.drawLine(Offset(w * 0.70, h * 0.28), Offset(w * 0.30, h * 0.72), strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// LinkedIn — the real mark is a rounded-square "LinkedIn blue" background
+/// with the white "in" lettermark (a dot-topped stem for the "i" and a
+/// rounded-leg "n") — drawn geometrically rather than as text so it stays
+/// crisp at any icon size.
+class LinkedinIcon extends StatelessWidget {
+  final double size;
+  const LinkedinIcon({super.key, this.size = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _LinkedinPainter()),
+    );
+  }
+}
+
+class _LinkedinPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, w, h),
+      Radius.circular(w * 0.18),
+    );
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF0A66C2));
+
+    final fillPaint = Paint()..color = Colors.white;
+
+    // "i" — dot + stem
+    canvas.drawCircle(Offset(w * 0.30, h * 0.32), w * 0.07, fillPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.24, h * 0.44, w * 0.12, h * 0.32),
+        Radius.circular(w * 0.03),
+      ),
+      fillPaint,
+    );
+
+    // "n" — left stem + rounded hump + right leg
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.48, h * 0.44, w * 0.11, h * 0.32),
+        Radius.circular(w * 0.03),
+      ),
+      fillPaint,
+    );
+    final hump = Path()
+      ..moveTo(w * 0.48, h * 0.52)
+      ..cubicTo(w * 0.48, h * 0.40, w * 0.78, h * 0.40, w * 0.78, h * 0.54)
+      ..lineTo(w * 0.78, h * 0.76)
+      ..lineTo(w * 0.67, h * 0.76)
+      ..lineTo(w * 0.67, h * 0.56)
+      ..cubicTo(w * 0.67, h * 0.50, w * 0.59, h * 0.50, w * 0.59, h * 0.56)
+      ..lineTo(w * 0.59, h * 0.76)
+      ..lineTo(w * 0.48, h * 0.76)
+      ..close();
+    canvas.drawPath(hump, fillPaint);
   }
 
   @override

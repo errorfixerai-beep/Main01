@@ -59,24 +59,44 @@ class _WalletRefundLogsScreenState extends State<WalletRefundLogsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
+                  // ⚠️ FIX (Boss request — "bada sa plum background hata
+                  // do, isko transparent karo"): was a solid
+                  // AppColors.gradient container with a translucent
+                  // white "Upgrade" button on top of it. Swapped to the
+                  // app's neutral bordered-card style (card2 + border);
+                  // the diamond count now uses the accent purple color
+                  // instead of white-on-gradient, and "Upgrade" is a
+                  // normal filled purple button. Same balance value,
+                  // same navigation to DiamondStoreScreen on tap.
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(18)),
+                    decoration: BoxDecoration(
+                      color: context.surfaces.card2,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: context.surfaces.border),
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(context.tr('diamond_balance_label'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          Text(context.tr('diamond_balance_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 6),
                           Row(children: [
                             const Text('💎', style: TextStyle(fontSize: 22)),
                             const SizedBox(width: 8),
-                            Text('$balance', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+                            Text('$balance', style: const TextStyle(color: AppColors.purple, fontSize: 28, fontWeight: FontWeight.w900)),
                           ]),
                         ]),
                         ElevatedButton(
                           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen())).then((_) => _load()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.purple,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          ),
                           child: Text(context.tr('upgrade_btn')),
                         ),
                       ],

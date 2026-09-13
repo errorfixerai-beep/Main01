@@ -49,15 +49,20 @@ class _GiftCodeScreenState extends State<GiftCodeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // ⚠️ UPDATE (Boss request — "isko aur acche se banao, text
-          // wagera add kar do"): the redeem card now sits on a gradient
-          // header band with a bigger icon, plus a new "How it works"
-          // 3-step explainer and a small footer note below it — same
-          // _redeemGiftCode() logic as before, just a fuller screen
-          // instead of a single bare card.
+          // ⚠️ FIX (Boss request — "bada sa plum background hata do, isko
+          // transparent karo"): was a solid AppColors.gradient header
+          // band with white text. Swapped to the app's neutral
+          // bordered-card style (card2 + border), icon in a soft
+          // purple-tinted rounded square, heading/body in normal text
+          // colors. Same _redeemGiftCode() logic, same "How it works"
+          // steps and footer note below — untouched.
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+              color: context.surfaces.card2,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: context.surfaces.border),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -65,15 +70,15 @@ class _GiftCodeScreenState extends State<GiftCodeScreen> {
                   width: 52,
                   height: 52,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(16)),
-                  child: const Icon(Icons.card_giftcard_rounded, color: Colors.white, size: 26),
+                  decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(Icons.card_giftcard_rounded, color: AppColors.purple, size: 26),
                 ),
                 const SizedBox(height: 14),
-                Text(context.tr('gift_code_header'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
+                Text(context.tr('gift_code_header'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
                 const SizedBox(height: 8),
                 Text(
                   context.tr('gift_code_description'),
-                  style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                  style: TextStyle(color: context.surfaces.textDim, fontSize: 13, height: 1.4),
                 ),
               ],
             ),

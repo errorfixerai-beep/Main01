@@ -41,9 +41,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     }
   }
 
-  // A simple, transparent rollup of the backend's real metrics into one
-  // headline number — NOT a separate AI/ML score. Weighted so an inactive
-  // channel (no uploads this week) can't hide behind a decent engagement %.
   int _healthScore(Map<String, dynamic> audit) {
     final engagement = (audit['engagementPct'] as num?)?.toDouble();
     final recentUploads = (audit['recentUploadsLast7Days'] as num?)?.toInt() ?? 0;
@@ -118,12 +115,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // ⚠️ FIX (Boss correction — "background mein koi color nahi hona
-        // chahiye, health score ko sahi se colorful dikhao"): dropped the
-        // solid `AppColors.gradient` fill in favour of the same
-        // transparent/bordered look used by every other card on this
-        // screen. The gauge itself now carries the color instead of the
-        // card background.
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -137,13 +128,18 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
           ]),
         ),
         const SizedBox(height: 20),
+        // ⚠️ FIX (Boss request — "BOTTOM OVERFLOWED BY 1.3 PIXELS"):
+        // childAspectRatio of 1.5 didn't leave enough cell height for a
+        // 2-line label (e.g. Hindi "शॉर्ट्स : लॉन्ग अनुपात (7 दिन)" wraps
+        // to 2 lines). Lowered to 1.15 (taller cells) so any 2-line label
+        // in any supported language fits without overflowing.
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.15,
           children: [
             StatCard(
               label: context.tr('audit_engagement_pct'),
@@ -165,14 +161,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     );
   }
 
-  // ⚠️ FIX (Boss correction — "health score ko sahi se colorful
-  // dikhao"): the filled arc and center number were hardcoded to plain
-  // white/white-alpha (made sense on the old solid-gradient card, not on
-  // a transparent one). Now uses the already-computed `_healthColor`
-  // (green ≥80, purple ≥60, orange ≥35, red below) so the ring and
-  // number both reflect the actual score, and the unfilled remainder of
-  // the ring uses the theme's border color instead of a translucent
-  // white so it reads correctly on a plain background.
   Widget _healthGauge(int score, Color color) {
     return SizedBox(
       height: 150,
@@ -220,14 +208,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
             Expanded(child: Text(message, style: const TextStyle(fontSize: 13, height: 1.4))),
           ]),
 
-          // ⚠️ NEW (Boss request — monetization gate): if this gap has a
-          // ready-made AI prompt, show a blurred/truncated preview of it
-          // plus Copy + Gemini buttons. BOTH buttons deliberately do NOT
-          // perform their literal action (copy to clipboard / open
-          // Gemini) — tapping either sends the user straight to the
-          // Diamond Store, since the actual usable prompt is a paid
-          // feature (₹10/month plan, per Boss). This is intentional
-          // product behaviour, not a bug.
           if (prompt != null && prompt.isNotEmpty) ...[
             const SizedBox(height: 12),
             _promptPreview(prompt),
@@ -244,11 +224,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _goToUpgrade,
-                  // "Real icon" per Boss request — Gemini's own logo
-                  // asset (add assets/gemini_icon.png + register it in
-                  // pubspec.yaml). Falls back to a sparkle icon if the
-                  // asset is missing so the app never crashes over a
-                  // missing image file.
                   icon: Image.asset(
                     'assets/gemini_icon.png',
                     width: 16,
@@ -274,9 +249,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     );
   }
 
-  // Shows only a truncated, blurred slice of the prompt with a fade + lock
-  // badge on top — enough to prove a real, specific prompt exists for this
-  // gap, not enough to actually read/use it for free.
   Widget _promptPreview(String prompt) {
     return Container(
       padding: const EdgeInsets.all(10),

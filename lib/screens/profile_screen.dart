@@ -26,6 +26,7 @@ import 'smart_scheduler_screen.dart';
 import 'visual_analyzer_screen.dart';
 import 'channel_audit_screen.dart';
 import 'wallet_refund_logs_screen.dart';
+import 'my_videos_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool embedded;
@@ -550,20 +551,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // context.tr() everywhere yet) makes the whole ProfileScreen rebuild
     // when the language changes, so the menu labels below — which DO use
     // context.tr() — actually update live instead of needing a re-navigate.
-    // (Kept even after the language_provider.dart fix — it's now redundant
-    // but harmless, since context.tr() itself rebuilds its own call sites.)
     context.watch<LanguageProvider>();
 
     final auth = context.watch<AuthProvider>();
     final user = auth.user ?? {};
     final channel = user['youtubeChannel'];
 
-    // ⚠️ [ANIK REQUEST - YouTube-only launch]: facebook/instagram are kept
-    // computed here (still read from _metaStatus, still updated by
-    // _loadMetaStatus()) even though the "Connected Accounts" section that
-    // used to render them below is currently hidden. Left in place —
-    // untouched — so restoring the section later is a pure UI uncomment
-    // with zero additional wiring.
     final facebook = _metaStatus?['facebook'];
     final instagram = _metaStatus?['instagram'];
 
@@ -572,18 +565,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
         children: [
-          // ⚠️ Avatar + @username block moved to Settings screen (see
-          // settings_screen.dart) — this screen now starts directly with
-          // the YouTube subscriber card.
           _youtubeSubscriberCard(channel),
           const SizedBox(height: 16),
 
           // ⚠️ [ANIK REQUEST - YouTube-only launch]: entire "Connected
-          // Accounts" section (Facebook tile + auto-linked Instagram tile)
-          // hidden — Meta business verification pending, YouTube
-          // verification already done. _loadMetaStatus(), _connectMeta(),
-          // _disconnectFacebook(), _connectTile(), _instagramTile() are all
-          // untouched below. Uncomment this block to restore.
+          // Accounts" section hidden — Meta business verification pending.
+          // Untouched below, uncomment to restore.
           //
           // Text(context.tr('connected_accounts'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
           // const SizedBox(height: 8),
@@ -606,7 +593,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           //   ),
           // const SizedBox(height: 20),
 
-          // ---------------- Creator OS (8 VidIQ-style tools) ----------------
+          // ---------------- Creator OS (VidIQ-style tools) ----------------
           Text(context.tr('creator_os_section'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Container(
@@ -632,6 +619,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _divider(),
               _menuRow(Icons.fact_check_rounded, context.tr('menu_channel_audit'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChannelAuditScreen()))),
+              _divider(),
+              // ⚠️ NEW (Boss request — "My Videos" screen was missing an
+              // entry point in Profile entirely, so nobody could open it).
+              _menuRow(Icons.video_collection_rounded, context.tr('menu_my_videos'), AppColors.purple,
+                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyVideosScreen()))),
               _divider(),
               _menuRow(Icons.receipt_long_rounded, context.tr('menu_wallet_refund_logs'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletRefundLogsScreen()))),
@@ -667,7 +659,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 12),
 
-          // "Settings" stays last in this group, after "Rate Us".
           Container(
             decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
             child: Column(children: [
@@ -685,9 +676,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ]),
           ),
           const SizedBox(height: 20),
-
-          // Logout and Delete Account live in SettingsScreen now — see
-          // lib/screens/settings_screen.dart, under the "Account" section.
         ],
       ),
     );

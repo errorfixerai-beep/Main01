@@ -20,22 +20,36 @@ class ReferEarnScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          // ⚠️ FIX (Boss request — "bada sa plum background hata do, isko
+          // transparent karo"): was a solid AppColors.gradient container.
+          // Swapped to the app's neutral bordered-card style (card2 +
+          // border), with the icon sitting in a soft purple-tinted
+          // circle instead of white-on-gradient. Same content, same
+          // layout — just not a big solid color block anymore.
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+              color: context.surfaces.card2,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: context.surfaces.border),
+            ),
             child: Column(
               children: [
                 Container(
                   width: 60, height: 60,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.card_giftcard_rounded, color: Colors.white, size: 30),
+                  decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.card_giftcard_rounded, color: AppColors.purple, size: 30),
                 ),
                 const SizedBox(height: 12),
-                Text(context.tr('invite_friends_earn'), style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+                Text(
+                  context.tr('invite_friends_earn'),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 6),
                 Text(
                   context.tr('refer_earn_body'),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                  style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5),
                   textAlign: TextAlign.center,
                 ),
               ],

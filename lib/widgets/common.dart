@@ -1,23 +1,154 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../providers/language_provider.dart';
 
 // ---------------- Toast ----------------
+// ⚠️ FIX (Boss request — "notification niche se green background me aata
+// hai, ise upar se aana chahiye, text black ho, aur color achha ho"):
+// This used to be a ScaffoldMessenger SnackBar, which Flutter always
+// docks at the BOTTOM of the screen — there's no supported way to move a
+// SnackBar to the top. Replaced with a custom top-sliding OverlayEntry
+// toast instead: white card, black text, a thin coloured accent bar +
+// icon on the left (green for success, red for error, purple for
+// neutral) rather than a solid colour fill, slides in from the top below
+// the status bar, and auto-dismisses after 3 seconds (or on tap). The
+// public function signatures (showToast/showApiError/showAiError/
+// showUploadError) are unchanged, so every existing call site across the
+// app keeps working exactly as before.
+OverlayEntry? _activeToastEntry;
+
 void showToast(BuildContext context, String message, {bool isError = false, bool isSuccess = false}) {
-  final color = isError ? AppColors.red : (isSuccess ? AppColors.green : Theme.of(context).colorScheme.surface);
-  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: isError || isSuccess ? color.withValues(alpha: 0.15) : null,
-      content: Text(
-        message,
-        style: TextStyle(color: isError ? AppColors.red : (isSuccess ? AppColors.green : null)),
-      ),
-      duration: const Duration(seconds: 3),
+  _activeToastEntry?.remove();
+  _activeToastEntry = null;
+
+  final overlayState = Overlay.of(context, rootOverlay: true);
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _TopToast(
+      message: message,
+      isError: isError,
+      isSuccess: isSuccess,
+      onDone: () {
+        if (identical(_activeToastEntry, entry)) {
+          _activeToastEntry = null;
+        }
+        entry.remove();
+      },
     ),
   );
+  _activeToastEntry = entry;
+  overlayState.insert(entry);
+}
+
+class _TopToast extends StatefulWidget {
+  final String message;
+  final bool isError;
+  final bool isSuccess;
+  final VoidCallback onDone;
+  const _TopToast({
+    required this.message,
+    required this.isError,
+    required this.isSuccess,
+    required this.onDone,
+  });
+
+  @override
+  State<_TopToast> createState() => _TopToastState();
+}
+
+class _TopToastState extends State<_TopToast> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+  Timer? _timer;
+  bool _dismissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
+    _slide = Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+    _timer = Timer(const Duration(seconds: 3), _dismiss);
+  }
+
+  Future<void> _dismiss() async {
+    if (_dismissing) return;
+    _dismissing = true;
+    _timer?.cancel();
+    if (mounted) {
+      await _controller.reverse();
+    }
+    widget.onDone();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = widget.isError
+        ? AppColors.red
+        : (widget.isSuccess ? AppColors.green : AppColors.purple);
+    final IconData icon = widget.isError
+        ? Icons.error_outline_rounded
+        : (widget.isSuccess ? Icons.check_circle_outline_rounded : Icons.info_outline_rounded);
+
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: SlideTransition(
+            position: _slide,
+            child: FadeTransition(
+              opacity: _fade,
+              child: Material(
+                color: Colors.transparent,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _dismiss,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border(left: BorderSide(color: accent, width: 4)),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6)),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(icon, color: accent, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.message,
+                            style: const TextStyle(color: Colors.black87, fontSize: 13.5, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 void showApiError(BuildContext context, Object err) {

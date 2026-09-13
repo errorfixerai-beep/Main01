@@ -7,23 +7,13 @@ import 'common.dart';
 /// Shared "Apply to Video" flow used by the AI Title/Description generator
 /// and the SEO Optimizer's "Apply to Video" button.
 ///
-/// ⚠️ FIX (Boss request — Option B): previously this ONLY listed videos
-/// TubePilot itself uploaded and that are still 'queued' (GET
-/// /videos?status=queued). If a creator's channel had videos already
-/// published — either uploaded through TubePilot and already live, or
-/// uploaded directly via YouTube Studio — none of them showed up here,
-/// so "Apply to Video" looked broken ("No queued videos") even though
-/// the channel clearly had videos.
-///
-/// Now shows TWO sections:
-///   1. "Scheduled in TubePilot" — existing behaviour, unchanged. Picking
-///      one still requires choosing a platform target and PATCHes
-///      /api/videos/:id/metadata (TubePilot's own DB record).
-///   2. "Published on YouTube" — NEW. Real videos fetched straight from
-///      the connected channel (GET /api/youtube/my-videos). Picking one
-///      writes directly to YouTube itself via
-///      PATCH /api/youtube/my-videos/:videoId — no platform choice needed,
-///      since this IS the YouTube video.
+/// ⚠️ FIX (Boss correction): previously the "Scheduled in TubePilot"
+/// section ALWAYS rendered its header + an empty placeholder whenever
+/// there were no queued TubePilot videos — even when the "Published on
+/// YouTube" section right below it had real videos to pick from. That
+/// made it look like nothing was available at all, even though a real,
+/// usable list was sitting right under it. Now: a section (header +
+/// content) only renders at all when it actually has something to show.
 Future<bool?> showApplyToVideoSheet(
   BuildContext context, {
   String? title,
@@ -163,6 +153,10 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
     );
     final platformTargets = (selectedQueuedVideo['platforms'] as List? ?? []).cast<Map<String, dynamic>>();
 
+    // ⚠️ FIX: nothing at all to show anywhere — this is the ONLY case
+    // where a combined empty state makes sense now.
+    final nothingAtAll = !_loading && _queuedVideos.isEmpty && _youtubeVideos.isEmpty && _youtubeLoadError == null;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.only(
@@ -189,16 +183,20 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
 
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: LoadingView())
+            else if (nothingAtAll)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: EmptyView(message: context.tr('apply_to_video_empty'), icon: Icons.video_library_outlined),
+              )
             else ...[
               // ---------------- Section 1: TubePilot queued videos ----------------
-              Text(context.tr('apply_to_video_section_queued'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              if (_queuedVideos.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: EmptyView(message: context.tr('apply_to_video_empty'), icon: Icons.video_library_outlined),
-                )
-              else
+              // ⚠️ FIX: this ENTIRE section (header + empty placeholder)
+              // is skipped when there are no queued videos — it no longer
+              // shows a "not available" message sitting above a real,
+              // usable YouTube video list.
+              if (_queuedVideos.isNotEmpty) ...[
+                Text(context.tr('apply_to_video_section_queued'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
                 ..._queuedVideos.map((v) {
                   final selected = _selectedSource == _Source.queued && v['_id'] == _selectedVideoId;
                   return GestureDetector(
@@ -228,81 +226,78 @@ class _ApplyToVideoSheetState extends State<_ApplyToVideoSheet> {
                   );
                 }),
 
-              if (_selectedSource == _Source.queued && platformTargets.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(context.tr('apply_to_video_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: platformTargets.map((p) {
-                    final platform = p['platform'] as String;
-                    final selected = platform == _selectedPlatform;
-                    return ChoiceChip(
-                      label: Text(platform[0].toUpperCase() + platform.substring(1)),
-                      selected: selected,
-                      selectedColor: AppColors.purple,
-                      labelStyle: TextStyle(color: selected ? Colors.white : null, fontWeight: FontWeight.w700, fontSize: 12.5),
-                      onSelected: (_) => setState(() => _selectedPlatform = platform),
-                    );
-                  }).toList(),
-                ),
+                if (_selectedSource == _Source.queued && platformTargets.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(context.tr('apply_to_video_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: platformTargets.map((p) {
+                      final platform = p['platform'] as String;
+                      final selected = platform == _selectedPlatform;
+                      return ChoiceChip(
+                        label: Text(platform[0].toUpperCase() + platform.substring(1)),
+                        selected: selected,
+                        selectedColor: AppColors.purple,
+                        labelStyle: TextStyle(color: selected ? Colors.white : null, fontWeight: FontWeight.w700, fontSize: 12.5),
+                        onSelected: (_) => setState(() => _selectedPlatform = platform),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 20),
               ],
 
-              const SizedBox(height: 20),
-
               // ---------------- Section 2: real YouTube channel videos ----------------
-              Text(context.tr('apply_to_video_section_youtube'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              if (_youtubeLoadError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(_youtubeLoadError!, style: const TextStyle(color: AppColors.red, fontSize: 12)),
-                )
-              else if (_youtubeVideos.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: EmptyView(message: context.tr('apply_to_video_youtube_empty'), icon: Icons.smart_display_outlined),
-                )
-              else
-                ..._youtubeVideos.map((v) {
-                  final selected = _selectedSource == _Source.youtube && v['videoId'] == _selectedYoutubeVideoId;
-                  final thumb = (v['thumbnail'] ?? '').toString();
-                  return GestureDetector(
-                    onTap: () => _selectYoutube(v['videoId']),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: selected ? AppColors.purple : context.surfaces.border, width: selected ? 1.6 : 1),
-                        borderRadius: BorderRadius.circular(12),
-                        color: selected ? AppColors.purple.withValues(alpha: 0.08) : null,
-                      ),
-                      child: Row(children: [
-                        Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                            size: 18, color: selected ? AppColors.purple : context.surfaces.textDim),
-                        const SizedBox(width: 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: thumb.isNotEmpty
-                              ? Image.network(thumb, width: 42, height: 42, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(width: 42, height: 42, color: context.surfaces.card2))
-                              : Container(width: 42, height: 42, color: context.surfaces.card2),
+              if (_youtubeVideos.isNotEmpty || _youtubeLoadError != null) ...[
+                Text(context.tr('apply_to_video_section_youtube'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                if (_youtubeLoadError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(_youtubeLoadError!, style: const TextStyle(color: AppColors.red, fontSize: 12)),
+                  )
+                else
+                  ..._youtubeVideos.map((v) {
+                    final selected = _selectedSource == _Source.youtube && v['videoId'] == _selectedYoutubeVideoId;
+                    final thumb = (v['thumbnail'] ?? '').toString();
+                    return GestureDetector(
+                      onTap: () => _selectYoutube(v['videoId']),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: selected ? AppColors.purple : context.surfaces.border, width: selected ? 1.6 : 1),
+                          borderRadius: BorderRadius.circular(12),
+                          color: selected ? AppColors.purple.withValues(alpha: 0.08) : null,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            (v['title'] ?? '').toString().isNotEmpty ? v['title'] : context.tr('apply_to_video_untitled'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                        child: Row(children: [
+                          Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                              size: 18, color: selected ? AppColors.purple : context.surfaces.textDim),
+                          const SizedBox(width: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: thumb.isNotEmpty
+                                ? Image.network(thumb, width: 42, height: 42, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(width: 42, height: 42, color: context.surfaces.card2))
+                                : Container(width: 42, height: 42, color: context.surfaces.card2),
                           ),
-                        ),
-                      ]),
-                    ),
-                  );
-                }),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              (v['title'] ?? '').toString().isNotEmpty ? v['title'] : context.tr('apply_to_video_untitled'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    );
+                  }),
+                const SizedBox(height: 20),
+              ],
 
-              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

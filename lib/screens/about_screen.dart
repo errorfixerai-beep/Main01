@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../widgets/brand_icons.dart';
@@ -26,6 +27,15 @@ class AboutScreen extends StatelessWidget {
 
   static const _platforms = [
     _Platform(name: 'YouTube', descKey: 'platform_youtube_desc'),
+  ];
+
+  // ⚠️ NEW (Boss request): real social links, shown as real brand icons at
+  // the bottom of the screen, above the footer.
+  static const _socialLinks = [
+    _SocialLink(name: 'YouTube', url: 'https://youtube.com/@officialtubepilot?si=cERiEnREtJc7SpJ_'),
+    _SocialLink(name: 'Instagram', url: 'https://www.instagram.com/tubepilot.app?stkn=aXBrenQ4aTNteHBk'),
+    _SocialLink(name: 'Twitter', url: 'https://x.com/TubePilotApp'),
+    _SocialLink(name: 'LinkedIn', url: 'https://www.linkedin.com/in/tube-pilot-7b48a9436?utm_source=share_via&utm_content=profile&utm_medium=member_android'),
   ];
 
   static const _storyParagraphs = [
@@ -64,198 +74,231 @@ class AboutScreen extends StatelessWidget {
     ),
   ];
 
+  Future<void> _openLink(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('about_app_bar_title'))),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          // ⚠️ FIX (Boss request): removed the top icon + "Tube Pilot" +
-          // tagline block — the AppBar title already says "About App", this
-          // duplicate branding block right below it isn't needed. Content
-          // now starts directly at "What is Tube Pilot".
-          const SizedBox(height: 8),
+      // ⚠️ FIX (Boss request): last card (signature/footer) was being
+      // covered by the device's bottom navigation bar. Body is now wrapped
+      // in a bottom-only SafeArea, plus extra bottom padding on the
+      // ListView, so the footer always clears the system nav bar / gesture
+      // area on every device.
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + MediaQuery.of(context).padding.bottom),
+          children: [
+            // ⚠️ FIX (Boss request): removed the top icon + "Tube Pilot" +
+            // tagline block — the AppBar title already says "About App", this
+            // duplicate branding block right below it isn't needed. Content
+            // now starts directly at "What is Tube Pilot".
+            const SizedBox(height: 8),
 
-          // ---------------- What is Tube Pilot ----------------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('what_is_tubepilot'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                Text(
-                  context.tr('what_is_tubepilot_body'),
-                  style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5, height: 1.5),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ---------------- Our Story ----------------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('our_story_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                ..._storyParagraphs.map((p) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: p.heading == null
-                          ? Text(p.body, style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5, height: 1.6))
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(p.heading!, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 6),
-                                Text(p.body, style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5, height: 1.6)),
-                              ],
-                            ),
-                    )),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // ---------------- Supported Platforms ----------------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('supported_platforms_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 14),
-                for (int i = 0; i < _platforms.length; i++) ...[
-                  _PlatformRow(platform: _platforms[i]),
-                  if (i != _platforms.length - 1) const SizedBox(height: 14),
+            // ---------------- What is Tube Pilot ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.tr('what_is_tubepilot'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  Text(
+                    context.tr('what_is_tubepilot_body'),
+                    style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5, height: 1.5),
+                  ),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // ---------------- Features ----------------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('features_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 14),
-                for (int i = 0; i < _features.length; i++) ...[
-                  _FeatureRow(feature: _features[i]),
-                  if (i != _features.length - 1) const SizedBox(height: 16),
+            // ---------------- Our Story ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.tr('our_story_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 12),
+                  ..._storyParagraphs.map((p) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: p.heading == null
+                            ? Text(p.body, style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5, height: 1.6))
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(p.heading!, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                                  const SizedBox(height: 6),
+                                  Text(p.body, style: TextStyle(color: context.surfaces.textDim, fontSize: 13.5, height: 1.6)),
+                                ],
+                              ),
+                      )),
                 ],
-                const SizedBox(height: 16),
-                Divider(color: context.surfaces.border, height: 1),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded, color: AppColors.purple, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      context.tr('app_version_label'),
-                      style: TextStyle(color: context.surfaces.textDim, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // ---------------- Supported Platforms ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.tr('supported_platforms_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 14),
+                  for (int i = 0; i < _platforms.length; i++) ...[
+                    _PlatformRow(platform: _platforms[i]),
+                    if (i != _platforms.length - 1) const SizedBox(height: 14),
                   ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ---------------- How it works ----------------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('how_it_works_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 16),
-                for (int i = 0; i < _steps.length; i++) ...[
-                  _StepRow(step: _steps[i]),
-                  if (i != _steps.length - 1) const SizedBox(height: 18),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // ---------------- Why Tube Pilot ----------------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.tr('why_creators_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                _WhyRow(icon: Icons.speed_rounded, text: context.tr('why_speed')),
-                const SizedBox(height: 10),
-                _WhyRow(icon: Icons.hub_rounded, text: context.tr('why_hub')),
-                const SizedBox(height: 10),
-                _WhyRow(icon: Icons.auto_mode_rounded, text: context.tr('why_automation')),
-                const SizedBox(height: 10),
-                _WhyRow(icon: Icons.support_agent_rounded, text: context.tr('why_support')),
-              ],
+            // ---------------- Features ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.tr('features_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 14),
+                  for (int i = 0; i < _features.length; i++) ...[
+                    _FeatureRow(feature: _features[i]),
+                    if (i != _features.length - 1) const SizedBox(height: 16),
+                  ],
+                  const SizedBox(height: 16),
+                  Divider(color: context.surfaces.border, height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded, color: AppColors.purple, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        context.tr('app_version_label'),
+                        style: TextStyle(color: context.surfaces.textDim, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 28),
+            const SizedBox(height: 16),
 
-          // ---------------- Signature footer (bottom-right only) ----------------
-          Align(
-            alignment: Alignment.centerRight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  context.tr('developed_powered_by'),
-                  style: TextStyle(color: context.surfaces.textDim, fontSize: 11, letterSpacing: 0.3),
-                ),
-                const SizedBox(height: 10),
-                Image.asset(
-                  'assets/signature.png',
-                  height: 46,
-                  errorBuilder: (_, __, ___) => Text(
-                    'Anik Kesharwani',
-                    style: TextStyle(
-                      fontFamily: 'cursive',
-                      fontSize: 22,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w600,
-                      color: context.surfaces.textDim,
+            // ---------------- How it works ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.tr('how_it_works_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 16),
+                  for (int i = 0; i < _steps.length; i++) ...[
+                    _StepRow(step: _steps[i]),
+                    if (i != _steps.length - 1) const SizedBox(height: 18),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ---------------- Why Tube Pilot ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.tr('why_creators_title'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 12),
+                  _WhyRow(icon: Icons.speed_rounded, text: context.tr('why_speed')),
+                  const SizedBox(height: 10),
+                  _WhyRow(icon: Icons.hub_rounded, text: context.tr('why_hub')),
+                  const SizedBox(height: 10),
+                  _WhyRow(icon: Icons.auto_mode_rounded, text: context.tr('why_automation')),
+                  const SizedBox(height: 10),
+                  _WhyRow(icon: Icons.support_agent_rounded, text: context.tr('why_support')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ---------------- Follow Us (real brand icons, bottom) ----------------
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Follow Us', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: _socialLinks.map((s) => _SocialIconButton(link: s, onTap: () => _openLink(s.url))).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // ---------------- Signature footer (bottom-right only) ----------------
+            Align(
+              alignment: Alignment.centerRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    context.tr('developed_powered_by'),
+                    style: TextStyle(color: context.surfaces.textDim, fontSize: 11, letterSpacing: 0.3),
+                  ),
+                  const SizedBox(height: 10),
+                  Image.asset(
+                    'assets/signature.png',
+                    height: 46,
+                    errorBuilder: (_, __, ___) => Text(
+                      'Anik Kesharwani',
+                      style: TextStyle(
+                        fontFamily: 'cursive',
+                        fontSize: 22,
+                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w600,
+                        color: context.surfaces.textDim,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Mr. Anik Kesharwani',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 2),
-                Text(context.tr('ceo_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11, letterSpacing: 1)),
-              ],
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Mr. Anik Kesharwani',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(context.tr('ceo_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 11, letterSpacing: 1)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // ---------------- Footer ----------------
-          Center(
-            child: Text(
-              _fmt(context.tr('about_footer_rights'), DateTime.now().year),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5),
+            // ---------------- Footer ----------------
+            Center(
+              child: Text(
+                _fmt(context.tr('about_footer_rights'), DateTime.now().year),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -281,6 +324,12 @@ class _Platform {
   final String name;
   final String descKey;
   const _Platform({required this.name, required this.descKey});
+}
+
+class _SocialLink {
+  final String name;
+  final String url;
+  const _SocialLink({required this.name, required this.url});
 }
 
 class _StoryParagraph {
@@ -438,6 +487,47 @@ class _WhyRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Real brand icon + name, tappable to open the actual profile/channel URL.
+class _SocialIconButton extends StatelessWidget {
+  final _SocialLink link;
+  final VoidCallback onTap;
+  const _SocialIconButton({required this.link, required this.onTap});
+
+  Widget _iconFor(String name) {
+    switch (name) {
+      case 'YouTube':
+        return const YoutubeIcon(size: 22);
+      case 'Instagram':
+        return const InstagramIcon(size: 22);
+      case 'Twitter':
+        return const TwitterIcon(size: 22);
+      case 'LinkedIn':
+        return const LinkedinIcon(size: 22);
+      default:
+        return const Icon(Icons.public_rounded, size: 22);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(borderRadius: BorderRadius.circular(8), child: _iconFor(link.name)),
+            const SizedBox(height: 6),
+            Text(link.name, style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5)),
+          ],
+        ),
+      ),
     );
   }
 }
