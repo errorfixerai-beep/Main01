@@ -328,7 +328,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
           : RefreshIndicator(
               onRefresh: () => _load(showLoader: false),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                // ⚠️ TIGHTENED FURTHER (Boss request — "sabhi ko aur upar
+                // karo"): top padding trimmed from 8 → 4.
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
                 children: [
                   // ---------------- Greeting ----------------
                   RichText(
@@ -342,16 +344,24 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   ),
                   const SizedBox(height: 4),
                   Text(context.tr('welcome_back_subtitle'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-                  const SizedBox(height: 20),
+                  // ⚠️ TIGHTENED: 14 → 12.
+                  const SizedBox(height: 12),
 
                   // ---------------- Stats grid (real data) ----------------
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.25,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    // ⚠️ FIX (Boss request — "BOTTOM OVERFLOWED" red pixel
+                    // errors on every metric card): 1.6 was too short for
+                    // the icon + label + value (+ subtitle) column to fit,
+                    // so every card clipped its bottom row. Lowered to 1.3
+                    // (taller cards) — combined with the tightened
+                    // _MetricCard padding/spacing below — so the content
+                    // fits with room to spare instead of overflowing.
+                    childAspectRatio: 1.3,
                     children: [
                       _MetricCard(
                         icon: Icons.cloud_upload_rounded,
@@ -380,7 +390,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  // ⚠️ FIX (Boss request — "quick action ke upar gap hai
+                  // use hatao aur quick action ko aur upar karo"): 14 → 6.
+                  const SizedBox(height: 6),
 
                   // ---------------- Quick Actions ----------------
                   Text(context.tr('quick_actions'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -416,7 +428,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
 
                   // ---------------- Upcoming Schedule ----------------
                   Row(
@@ -437,7 +449,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   if (upcomingEvents.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -454,7 +466,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                           dateLabel: e['scheduledAt'] != null ? formatDateTime(e['scheduledAt']) : context.tr('publishing_now'),
                           onTap: () => _openPreview(e),
                         )),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
 
                   // ---------------- Recent Activity (real uploaded videos) ----------------
                   Text(context.tr('recent_activity_home'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -591,7 +603,10 @@ class _MetricCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        // ⚠️ TIGHTENED (Boss's overflow fix, alongside the 1.3 aspect
+        // ratio above): vertical padding 10 → 8, plus the internal gaps
+        // below, so there's extra breathing room even on smaller screens.
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: context.surfaces.card2,
           borderRadius: BorderRadius.circular(16),
@@ -603,19 +618,18 @@ class _MetricCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               alignment: Alignment.center,
               decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(9)),
-              child: Icon(icon, color: AppColors.purple, size: 15),
+              child: Icon(icon, color: AppColors.purple, size: 14),
             ),
-            const SizedBox(height: 6),
-            Text(label, style: TextStyle(color: context.surfaces.textDim, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 1),
+            Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
             if (subtitle != null) ...[
-              const SizedBox(height: 1),
-              Text(subtitle!, style: TextStyle(color: context.surfaces.textDim, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(subtitle!, style: TextStyle(color: context.surfaces.textDim, fontSize: 9.5), maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ],
         ),
@@ -633,12 +647,15 @@ class _MetricCard extends StatelessWidget {
 // Public (not private to this file) so username_setup_screen.dart can call
 // showIdeaPopup() directly without duplicating this widget.
 //
-// ⚠️ UPDATED (Boss request — "3 step mein left/right scroll se ideas
-// badalte rahen, reaction ke niche copy button, stacked-card look"): the
-// dialog body below was rewritten from a single static AlertDialog into a
-// swipeable PageView-based card stack. See _IdeaPopupDialog for the new
-// implementation — showIdeaPopup() itself (the fetch + open-dialog logic)
-// is unchanged.
+// ⚠️ UPDATED AGAIN (Boss request — "ideas card ko fanned/stacked photo
+// look banao jaise reference image, aur copy button ka background bilkul
+// kuch nahi/transparent hona chahiye"): the peek cards behind the active
+// card are now rotated (fanned outward from the bottom, like a spread hand
+// of photos) instead of just scaled straight-on rectangles — see
+// _peekCard's `angle` param. The Copy button was switched from an
+// OutlinedButton (which still paints a visible border/box) to a bare
+// TextButton.icon with no border and an explicitly transparent background,
+// so nothing renders around it at rest.
 // =============================================================================
 
 Future<void> showIdeaPopup(BuildContext context, {String? channelNiche}) async {
@@ -663,6 +680,15 @@ Future<void> showIdeaPopup(BuildContext context, {String? channelNiche}) async {
   );
 }
 
+// Tiny data holder for one in-flight "reaction flew up" animation. Each tap
+// gets its own instance + key so multiple fast taps can animate at once
+// without interrupting each other.
+class _FlyingEmoji {
+  final Key id;
+  final String emoji;
+  _FlyingEmoji(this.id, this.emoji);
+}
+
 class _IdeaPopupDialog extends StatefulWidget {
   final List<Map<String, dynamic>> ideas;
   const _IdeaPopupDialog({required this.ideas});
@@ -674,6 +700,9 @@ class _IdeaPopupDialogState extends State<_IdeaPopupDialog> {
   late final PageController _pageController;
   int _index = 0;
   static const _reactions = ['🔥', '😍', '🤔', '👎'];
+
+  final List<_FlyingEmoji> _flyingEmojis = [];
+  bool _dismissing = false;
 
   @override
   void initState() {
@@ -699,7 +728,30 @@ class _IdeaPopupDialogState extends State<_IdeaPopupDialog> {
     }
   }
 
-  // ⚠️ NEW — Copy button handler. Uses Flutter's built-in Clipboard API
+  // Boss request: "reaction pe click karo to reaction upar jaake usi idea
+  // pe gayab ho jaaye". Kicks off a floating emoji (see _buildFlyingEmoji)
+  // and fades/shrinks the current card out, THEN advances to the next idea
+  // once both finish.
+  Future<void> _onReactionTap(String emoji) async {
+    final flyId = UniqueKey();
+    setState(() {
+      _flyingEmojis.add(_FlyingEmoji(flyId, emoji));
+      _dismissing = true;
+    });
+
+    // Card fade+shrink duration — advance once it's fully faded.
+    await Future.delayed(const Duration(milliseconds: 240));
+    if (!mounted) return;
+    setState(() => _dismissing = false);
+    _goNext();
+
+    // Let the flying emoji finish its own (longer) rise-and-fade before
+    // removing it from the tree.
+    await Future.delayed(const Duration(milliseconds: 360));
+    if (mounted) setState(() => _flyingEmojis.removeWhere((f) => f.id == flyId));
+  }
+
+  // Copy button handler. Uses Flutter's built-in Clipboard API
   // (package:flutter/services.dart) — no new pubspec dependency needed.
   Future<void> _copyIdea(Map<String, dynamic> idea) async {
     final title = (idea['title'] ?? '').toString();
@@ -709,23 +761,29 @@ class _IdeaPopupDialogState extends State<_IdeaPopupDialog> {
     if (mounted) showToast(context, context.tr('idea_popup_copied_toast'), isSuccess: true);
   }
 
-  // Purely decorative "peeking card" behind the active card — gives the
-  // stacked-photos look from the reference image. No content inside, just
-  // a faint bordered rectangle, offset/scaled so it peeks out from behind.
-  Widget _peekCard({required double top, required double scale, required double opacity}) {
+  // ⚠️ REDESIGNED — purely decorative "peeking card" behind the active
+  // card, now rotated + pivoted from the bottom so the stack reads as a
+  // fanned-out spread of photos (per the reference image) instead of a
+  // flat scaled rectangle sitting directly behind the front card.
+  Widget _peekCard({required double angle, required double top, required double opacity, required double scale}) {
     return Positioned(
       top: top,
-      child: Opacity(
-        opacity: opacity,
-        child: Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 250,
-            height: 190,
-            decoration: BoxDecoration(
-              color: AppColors.purple.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.purple.withValues(alpha: 0.15)),
+      child: Transform.rotate(
+        angle: angle,
+        alignment: Alignment.bottomCenter,
+        child: Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 230,
+              height: 178,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.purple.withValues(alpha: 0.18)),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 3))],
+              ),
             ),
           ),
         ),
@@ -777,81 +835,150 @@ class _IdeaPopupDialogState extends State<_IdeaPopupDialog> {
     );
   }
 
+  // One floating reaction emoji: starts at the reaction row, rises ~90px
+  // while fading out, using a single TweenAnimationBuilder so no extra
+  // AnimationController lifecycle to manage per tap.
+  Widget _buildFlyingEmoji(_FlyingEmoji f) {
+    return Positioned.fill(
+      key: f.id,
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOut,
+          builder: (context, t, child) {
+            return Opacity(
+              opacity: (1 - t).clamp(0.0, 1.0),
+              child: Transform.translate(
+                offset: Offset(0, -90 * t),
+                child: Align(
+                  alignment: const Alignment(0, 0.72),
+                  child: Transform.scale(
+                    scale: 1 + (0.4 * (1 - t)),
+                    child: Text(f.emoji, style: const TextStyle(fontSize: 28)),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(children: [
-              const Icon(Icons.auto_awesome_rounded, color: AppColors.purple, size: 20),
-              const SizedBox(width: 8),
-              Expanded(child: Text(context.tr('idea_popup_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
-              Text('${_index + 1}/${widget.ideas.length}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
-            ]),
-            const SizedBox(height: 16),
+      // Wraps everything so the flying-emoji overlay can sit on top of the
+      // reaction row / copy button, not just the card area.
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  const Icon(Icons.auto_awesome_rounded, color: AppColors.purple, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(context.tr('idea_popup_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+                  Text('${_index + 1}/${widget.ideas.length}', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                ]),
+                const SizedBox(height: 18),
 
-            // ---- Swipeable 3-step card stack ----
-            // Left/right swipe on the PageView moves between the 3 ideas
-            // (Boss's "scroll se ideas badalte rahen" requirement) — no
-            // extra gesture wiring needed, PageView handles that natively.
-            SizedBox(
-              height: 226,
-              child: Stack(
-                alignment: Alignment.topCenter,
-                clipBehavior: Clip.none,
-                children: [
-                  if (_index < widget.ideas.length - 2) _peekCard(top: 16, scale: 0.90, opacity: 0.35),
-                  if (_index < widget.ideas.length - 1) _peekCard(top: 8, scale: 0.95, opacity: 0.55),
-                  PageView.builder(
-                    controller: _pageController,
-                    itemCount: widget.ideas.length,
-                    onPageChanged: (i) => setState(() => _index = i),
-                    itemBuilder: (_, i) => Center(child: _ideaCard(widget.ideas[i], i)),
+                // ---- Swipeable fanned card stack ----
+                // Left/right swipe on the PageView moves between the 3 ideas
+                // (Boss's "scroll se ideas badalte rahen" requirement) — no
+                // extra gesture wiring needed, PageView handles that natively.
+                // The two cards behind are rotated outward from the bottom
+                // (Boss's "fanned photo stack" reference image) so they peek
+                // out on alternating sides of the straight, front-facing
+                // active card.
+                SizedBox(
+                  height: 232,
+                  child: Stack(
+                    alignment: Alignment.topCenter,
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (_index < widget.ideas.length - 2)
+                        _peekCard(angle: -0.15, top: 18, opacity: 0.45, scale: 0.92),
+                      if (_index < widget.ideas.length - 1)
+                        _peekCard(angle: 0.11, top: 10, opacity: 0.7, scale: 0.96),
+                      // Active card fades + shrinks slightly whenever a
+                      // reaction is tapped (Boss's "card bhi gayab ho" ask),
+                      // instead of just snapping to the next page.
+                      AnimatedOpacity(
+                        opacity: _dismissing ? 0 : 1,
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOut,
+                        child: AnimatedScale(
+                          scale: _dismissing ? 0.88 : 1,
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOut,
+                          child: PageView.builder(
+                            controller: _pageController,
+                            itemCount: widget.ideas.length,
+                            onPageChanged: (i) => setState(() => _index = i),
+                            itemBuilder: (_, i) => Center(child: _ideaCard(widget.ideas[i], i)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              context.tr('idea_popup_swipe_hint'),
-              style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5, fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 14),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  context.tr('idea_popup_swipe_hint'),
+                  style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5, fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 14),
 
-            // Emoji reactions — tapping any of them advances to the next
-            // idea automatically (or closes the dialog on the last one).
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: _reactions.map((e) => GestureDetector(
-                onTap: _goNext,
-                child: Text(e, style: const TextStyle(fontSize: 26)),
-              )).toList(),
-            ),
-            const SizedBox(height: 14),
+                // Emoji reactions — tapping any of them flies the emoji up
+                // (see _buildFlyingEmoji), dismisses the current card, then
+                // advances to the next idea automatically (or closes the
+                // dialog on the last one).
+                Container(
+                  color: Colors.transparent,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: _reactions.map((e) => GestureDetector(
+                      onTap: () => _onReactionTap(e),
+                      child: Text(e, style: const TextStyle(fontSize: 26)),
+                    )).toList(),
+                  ),
+                ),
+                const SizedBox(height: 14),
 
-            // ⚠️ NEW — Copy button, bottom of the card per Boss's spec, so
-            // the currently-shown idea's title+description can be copied
-            // straight into a script/notes app.
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _copyIdea(widget.ideas[_index]),
-                icon: const Icon(Icons.copy_rounded, size: 16),
-                label: Text(context.tr('idea_popup_copy_btn')),
-              ),
+                // ⚠️ FIX (Boss request — "copy button ke background me
+                // kuch nahi, bilkul transparent"): swapped OutlinedButton
+                // (which still paints a visible border box around itself)
+                // for a bare TextButton.icon — no border, no fill, nothing
+                // rendered at rest besides the icon + label themselves.
+                Center(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: AppColors.purple,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    ),
+                    onPressed: () => _copyIdea(widget.ideas[_index]),
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    label: Text(context.tr('idea_popup_copy_btn')),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(context.tr('skip')),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(context.tr('skip')),
-            ),
-          ],
-        ),
+          ),
+          ..._flyingEmojis.map(_buildFlyingEmoji),
+        ],
       ),
     );
   }

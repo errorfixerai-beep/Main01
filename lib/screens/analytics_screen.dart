@@ -143,18 +143,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           : RefreshIndicator(
               onRefresh: () => _load(showLoader: false),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
+                // ⚠️ TIGHTENED FURTHER (Boss request — "aur upar karo"):
+                // top padding trimmed from 8 → 4.
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
                 children: [
-                  // ⚠️ FIX ("BOTTOM OVERFLOWED BY 31 PIXELS"): same fix as
-                  // dashboard_screen.dart's stats grid — 1.5 didn't leave
-                  // enough cell height for icon + label + value + subtitle.
+                  // ⚠️ FIX (Boss request — "BOTTOM OVERFLOWED" red pixel
+                  // errors on every metric card): 1.6 was too short for
+                  // the icon + label + value (+ subtitle) column to fit,
+                  // so every card clipped its bottom row. Lowered to 1.3
+                  // (taller cards) — combined with the tightened
+                  // _MetricCard padding/spacing below — so the content
+                  // fits with room to spare instead of overflowing.
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.25,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 1.3,
                     children: [
                       _MetricCard(
                         icon: Icons.cloud_upload_rounded,
@@ -182,7 +188,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  // ⚠️ FIX (Boss request — "gap hai use hatao aur
+                  // componets ko aur upar karo"): 12 → 6, so the chart
+                  // card sits right under the stats grid.
+                  const SizedBox(height: 6),
 
                   // ---------------- 14-day upload trend chart ----------------
                   Container(
@@ -435,7 +444,10 @@ class _MetricCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        // ⚠️ TIGHTENED (Boss's overflow fix, alongside the 1.3 aspect
+        // ratio above): vertical padding 10 → 8, plus the internal gaps
+        // below, so there's extra breathing room even on smaller screens.
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: context.surfaces.card2,
           borderRadius: BorderRadius.circular(16),
@@ -447,19 +459,18 @@ class _MetricCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               alignment: Alignment.center,
               decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(9)),
-              child: Icon(icon, color: AppColors.purple, size: 15),
+              child: Icon(icon, color: AppColors.purple, size: 14),
             ),
-            const SizedBox(height: 6),
-            Text(label, style: TextStyle(color: context.surfaces.textDim, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 1),
+            Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
             if (subtitle != null) ...[
-              const SizedBox(height: 1),
-              Text(subtitle!, style: TextStyle(color: context.surfaces.textDim, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(subtitle!, style: TextStyle(color: context.surfaces.textDim, fontSize: 9.5), maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ],
         ),

@@ -83,31 +83,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 210, height: 210,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              // Soft glow only (fades to transparent) — no
-                              // solid fill behind the icon anymore.
-                              gradient: RadialGradient(colors: [AppColors.purple.withValues(alpha: 0.18), Colors.transparent]),
-                            ),
+                          // ⚠️ FIX (Boss request — "peeche jo blur plum
+                          // colour dikh raha hai use pura hatao"): the
+                          // RadialGradient glow container behind the icon
+                          // is removed entirely — this is now a plain,
+                          // fully transparent SizedBox, so nothing but the
+                          // icon itself renders. Icon itself bumped up
+                          // (96 → 116) to compensate visually since the
+                          // glow isn't there to fill the space anymore.
+                          SizedBox(
+                            width: 210,
+                            height: 210,
                             child: Center(
-                              // ⚠️ FIX (Boss request): real icon image with
-                              // transparent background, instead of a
-                              // Material icon boxed inside a solid gradient
-                              // circle. Falls back to the previous
-                              // icon+circle look if the asset isn't added
-                              // to assets/ + pubspec.yaml yet — nothing
-                              // breaks either way.
                               child: Image.asset(
                                 s.iconAsset,
-                                width: 96,
-                                height: 96,
+                                width: 116,
+                                height: 116,
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => Container(
-                                  width: 96, height: 96,
+                                  width: 116, height: 116,
                                   decoration: const BoxDecoration(gradient: AppColors.gradient, shape: BoxShape.circle),
-                                  child: Icon(s.icon, size: 44, color: Colors.white),
+                                  child: Icon(s.icon, size: 52, color: Colors.white),
                                 ),
                               ),
                             ),

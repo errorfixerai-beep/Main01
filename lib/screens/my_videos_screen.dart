@@ -224,7 +224,13 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('myvideos_title'))),
+      // ⚠️ FIX (Boss request — "top me jo likha hai use hata ke likho My
+      // Videos"): the header was showing the raw translation key
+      // ('myvideos_title') because that key isn't set up in the
+      // translation files yet. Hardcoded to "My Videos" so it always
+      // reads correctly regardless of translation-file status — swap
+      // back to context.tr('myvideos_title') once that key is added.
+      appBar: AppBar(title: const Text('My Videos')),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -244,16 +250,23 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     );
   }
 
+  // ⚠️ REDESIGNED (Boss request — "square/grid card ko horizontal me
+  // karo"): was thumbnail-on-top / title-below / menu-below (a tall
+  // square-ish stacked card). Now a horizontal row — a fixed-width
+  // thumbnail on the left, title + the 3-dot menu on the right — matching
+  // the reference layout.
   Widget _videoCard(Map<String, dynamic> item) {
     final thumb = (item['thumbnail'] ?? '').toString();
     final id = _idOf(item);
     final isHighlighted = id != null && id == _highlightedId;
     final cardKey = id != null ? (_cardKeys[id] ??= GlobalKey()) : null;
+    final title = (item['title'] ?? '').toString().isNotEmpty ? item['title'].toString() : context.tr('apply_to_video_untitled');
 
     return AnimatedContainer(
       key: cardKey,
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         border: Border.all(
           color: isHighlighted ? AppColors.purple : context.surfaces.border,
@@ -264,37 +277,43 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
             ? [BoxShadow(color: AppColors.purple.withOpacity(0.25), blurRadius: 12, spreadRadius: 1)]
             : null,
       ),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
             onTap: () => _openEditSheet(item),
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 118,
+                height: 74,
                 child: thumb.isNotEmpty
-                    ? Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: context.surfaces.card2, child: const Icon(Icons.movie_outlined, size: 32)))
-                    : Container(color: context.surfaces.card2, child: const Icon(Icons.movie_outlined, size: 32)),
+                    ? Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: context.surfaces.card2, child: const Icon(Icons.movie_outlined, size: 26)))
+                    : Container(color: context.surfaces.card2, child: const Icon(Icons.movie_outlined, size: 26)),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+          const SizedBox(width: 12),
+          Expanded(
             child: GestureDetector(
               onTap: () => _openEditSheet(item),
-              child: Text(
-                (item['title'] ?? '').toString().isNotEmpty ? item['title'] : context.tr('apply_to_video_untitled'),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
               ),
             ),
           ),
-          // 3-dot menu, centered at the bottom of the card, per Boss spec.
+          // 3-dot menu — now top-right of the row instead of centered
+          // below a square card.
           GestureDetector(
             onTap: () => _showCardMenu(item),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.only(left: 4),
               child: Icon(Icons.more_horiz_rounded, color: context.surfaces.textDim),
             ),
           ),
@@ -422,16 +441,31 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
     }
   }
 
-  Widget _fieldLabel(String text, String field) {
+  // ⚠️ SIMPLIFIED (Boss request — "myvideos_ai_generate jaha jaha hai use
+  // hata ke box ke neeche right me karo"): this used to render the field
+  // label AND the AI-generate link side-by-side in one row above the
+  // TextField. Now it's just the plain label — the AI-generate control
+  // moved to its own widget (_aiGenerateRow below), placed AFTER each
+  // TextField instead of above it.
+  Widget _fieldLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(text, style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-          GestureDetector(
-            onTap: () => _generate(field),
-            child: Row(children: [
+      child: Text(text, style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
+    );
+  }
+
+  // ⚠️ NEW — the AI-generate control itself, now right-aligned directly
+  // under its field's box instead of sitting next to the label above it.
+  Widget _aiGenerateRow(String field) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: GestureDetector(
+          onTap: () => _generate(field),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Icon(Icons.auto_awesome_rounded, size: 14, color: widget.aiEligible ? AppColors.purpleLight : context.surfaces.textDim),
               const SizedBox(width: 4),
               Text(context.tr('myvideos_ai_generate'), style: TextStyle(color: widget.aiEligible ? AppColors.purpleLight : context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -439,9 +473,9 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
                 const SizedBox(width: 4),
                 Icon(Icons.lock_rounded, size: 12, color: context.surfaces.textDim),
               ],
-            ]),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -487,14 +521,20 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
                 child: Text(context.tr('myvideos_change_thumbnail'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
               ),
 
-              _fieldLabel(context.tr('up_title_label'), 'title'),
+              // ---- Title ----
+              _fieldLabel(context.tr('up_title_label')),
               TextField(controller: _titleCtrl, maxLength: 100, decoration: InputDecoration(hintText: context.tr('up_title_hint'))),
+              _aiGenerateRow('title'),
 
-              _fieldLabel(context.tr('up_description_label'), 'description'),
+              // ---- Description ----
+              _fieldLabel(context.tr('up_description_label')),
               TextField(controller: _descCtrl, maxLines: 4, maxLength: 5000, decoration: InputDecoration(hintText: context.tr('up_description_hint'))),
+              _aiGenerateRow('description'),
 
-              _fieldLabel(context.tr('up_tags_label'), 'tags'),
+              // ---- Tags ----
+              _fieldLabel(context.tr('up_tags_label')),
               TextField(controller: _tagsCtrl, decoration: InputDecoration(hintText: context.tr('up_tags_hint'))),
+              _aiGenerateRow('tags'),
 
               const SizedBox(height: 20),
               GradientButton(label: context.tr('save_btn'), loading: _saving, onPressed: _save),

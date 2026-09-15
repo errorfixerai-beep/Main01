@@ -12,36 +12,16 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../providers/language_provider.dart';
 
-// ⚠️ FIX: previous version imported from `package:cashfree_pg/...` and
-// declared `implements CFCallback` — neither is correct. The package that
-// actually exposes CFPaymentGatewayService / CFSessionBuilder /
-// CFDropCheckoutPaymentBuilder is `flutter_cashfree_pg_sdk` (see
-// pubspec.yaml), and its own official examples never implement a
-// CFCallback interface — setCallback() just takes two plain function
-// references matching (String orderId) and (CFErrorResponse, String
-// orderId). cfenums/cfexceptions also live under utils/, not api/.
-//
-// ⚠️ BOSS UPDATE:
-// 1. Removed the "TEST MODE — Sandbox" banner entirely. Backend already
-//    switches live/sandbox purely via its own .env (CASHFREE_ENV) — no
-//    frontend rebuild needed either way.
-// 2. Package cards upgraded: badges (Popular / Best Value), a feature
-//    checklist line, and a "diamonds per ₹1" value line.
-// 3. Pricing lives entirely on the backend (this screen only renders
-//    whatever GET /diamonds/packages returns).
-// 4. Enterprise card upgraded with a feature list + support email.
-// 5. FIX ("BOTTOM OVERFLOWED BY 30/31 PIXELS"): switched from a 2-column
-//    GridView with a fixed childAspectRatio to a single-column list of
-//    full-width cards with no fixed height.
-// 6. Every package card lists the app-wide AI/creator tools included.
-//
-// ⚠️ FIX (this revision — Boss request: "niche button Android OS ke
-// bujjton ke peeche dab raha hai, scrollable banao"): wrapped the body in
-// SafeArea(bottom: true) AND added the device's actual system
-// navigation-bar height (MediaQuery.of(context).padding.bottom) as extra
-// bottom padding on top of the usual 20px — so the last card (Enterprise)
-// always scrolls fully clear of a gesture bar or 3-button nav on every
-// device, not just ones with a small nav bar.
+// ⚠️ BOSS UPDATE (plan/quota system — real per-tier features):
+// Previously every card rendered the SAME fixed `facilityKeys` list
+// (title/description/thumbnail/SEO/competitor), regardless of package —
+// so a ₹10 buyer's screen looked identical to a ₹200 buyer's screen even
+// though the backend only ever granted the ₹10 buyer 1 thumbnail prompt
+// and no SEO/Competitor access at all. That mismatch is fixed here:
+// each package now renders straight from its own `features` array
+// (label + included flag) coming from GET /diamonds/packages — no more
+// static per-card checklist. Included → green tick; not included → grey
+// cross, so the upgrade incentive is visible on the card itself.
 class DiamondStoreScreen extends StatefulWidget {
   const DiamondStoreScreen({super.key});
   @override
@@ -247,6 +227,12 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
     final isPaying = _payingDiamonds == diamonds;
     final perRupee = price > 0 ? (diamonds / price) : 0;
 
+    // ⚠️ NEW: per-package feature list straight from the backend — each
+    // item is {"label": String, "included": bool}. Falls back to an empty
+    // list (renders no rows, never crashes) if an older cached response
+    // without `features` ever slips through.
+    final List<dynamic> features = (p['features'] as List<dynamic>?) ?? [];
+
     String? badgeText;
     Color? badgeColor;
     if (packages.length >= 3) {
@@ -258,14 +244,6 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
         badgeColor = Theme.of(context).colorScheme.primary;
       }
     }
-
-    final facilityKeys = [
-      'diamond_feature_ai_title',
-      'diamond_feature_ai_description',
-      'diamond_feature_thumbnail_prompt',
-      'diamond_feature_score_analysis',
-      'diamond_feature_competitor_analysis',
-    ];
 
     return Container(
       width: double.infinity,
@@ -334,22 +312,39 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
                 style: TextStyle(color: context.surfaces.textDim, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2),
               ),
               const SizedBox(height: 8),
-              ...facilityKeys.map((key) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.check_circle_rounded, size: 15, color: AppColors.green),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            context.tr(key),
-                            style: const TextStyle(fontSize: 12.5, height: 1.25),
+              // ⚠️ NEW: renders straight off `features` — included:true =
+              // green tick + normal text; included:false = grey cross +
+              // dimmed/strikethrough-free text (still readable, just
+              // visually deprioritized), so the user sees exactly what
+              // this tier is missing vs a higher one.
+              ...features.map((f) {
+                final bool included = f['included'] == true;
+                final String label = f['label'] as String? ?? '';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        included ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                        size: 15,
+                        color: included ? AppColors.green : context.surfaces.textDim,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.25,
+                            color: included ? null : context.surfaces.textDim,
                           ),
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               Row(
                 children: [
                   Icon(Icons.bolt_rounded, size: 14, color: AppColors.green),
