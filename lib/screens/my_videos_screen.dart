@@ -9,17 +9,10 @@ import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import 'diamond_store_screen.dart';
 
-/// ⚠️ NEW (Boss request): shows EVERY video the creator has — TubePilot's
-/// own queued/uploaded records AND real videos already live on the
-/// connected YouTube channel — combined via GET /videos/library (backend
-/// merges duplicates: a TubePilot-uploaded video that's already live on
-/// YouTube is shown once, using the live YouTube copy as the source of
-/// truth).
+/// Shows EVERY video the creator has — TubePilot's own queued/uploaded
+/// records AND real videos already live on the connected YouTube channel —
+/// combined via GET /videos/library (backend merges duplicates).
 class MyVideosScreen extends StatefulWidget {
-  // ⚠️ NEW — set when opened from a share deep link
-  // (tubepilot://video/<id>, see main.dart's _handleVideoDeepLink). When
-  // present, the matching card is auto-scrolled-to and briefly
-  // highlighted once the list finishes loading.
   final String? highlightVideoId;
   const MyVideosScreen({super.key, this.highlightVideoId});
   @override
@@ -29,19 +22,8 @@ class MyVideosScreen extends StatefulWidget {
 class _MyVideosScreenState extends State<MyVideosScreen> {
   bool _loading = true;
   List<Map<String, dynamic>> _videos = [];
-  // Whether AI-assist (spark icon) is usable — active subscription OR any
-  // diamond balance. Loaded once from the dashboard, same data source the
-  // rest of the app already uses for this. NOTE: this is a FRONTEND gate —
-  // if backend-level enforcement is also wanted, the AI endpoints
-  // themselves (routes/ai.js — not reviewed here) would need the same
-  // check added server-side.
   bool _aiEligible = false;
 
-  // ---------------- Highlight-on-open (deep link) ----------------
-  // One GlobalKey per card, keyed by the same id used to match
-  // widget.highlightVideoId, so we can locate + scroll to the right card
-  // after the list is built (ListView.builder items don't have a fixed
-  // height, so we can't just compute an offset from the index).
   final Map<String, GlobalKey> _cardKeys = {};
   String? _highlightedId;
   bool _highlightHandled = false;
@@ -80,8 +62,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     }
   }
 
-  // Only runs once per screen instance (e.g. pull-to-refresh afterwards
-  // shouldn't keep re-scrolling/re-highlighting the same card).
   void _maybeScrollToHighlighted() {
     final targetId = widget.highlightVideoId;
     if (targetId == null || _highlightHandled) return;
@@ -89,8 +69,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     if (!match) return;
     _highlightHandled = true;
 
-    // Wait for the frame where the matching card (and its GlobalKey) has
-    // actually been built by ListView.builder before trying to scroll.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final key = _cardKeys[targetId];
       final cardContext = key?.currentContext;
@@ -116,7 +94,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen()));
   }
 
-  // ---------------- 3-dot menu ----------------
   Future<void> _showCardMenu(Map<String, dynamic> item) async {
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -148,9 +125,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
       showToast(context, context.tr('myvideos_share_unavailable'), isError: true);
       return;
     }
-    // Points at the backend's smart-link redirector (routes/share.js) —
-    // opens the app via its custom URL scheme if installed, else falls
-    // back to the Play Store listing.
     final shareUrl = '${AppConfig.shareBaseUrl}/v/$videoId';
     Share.share('${item['title'] ?? ''}\n$shareUrl');
   }
@@ -170,8 +144,12 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     );
     if (firstConfirm != true || !mounted) return;
 
-    // Second confirmation — Boss specifically asked for a repeat prompt
-    // before an actual (irreversible, cross-platform) delete happens.
+    // ⚠️ FIX (Boss request — the raw translation key text
+    // "myvideos_delete_final_title" / "_body" / "_confirm" was showing on
+    // screen because those keys were missing from app_strings.dart. Now
+    // that they're added there, this uses plain context.tr() again — a
+    // short "Delete Video?" title, a one-line body, and a simple "Delete"
+    // button label (not the whole key name).
     final secondConfirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -191,7 +169,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
 
     try {
       if (item['dbId'] != null) {
-        // Backend cascades this to YouTube too when a live target exists.
         await ApiService.instance.cancelVideo(item['dbId']);
       } else if (item['ytVideoId'] != null) {
         await ApiService.instance.deleteYoutubeOnlyVideo(item['ytVideoId']);
@@ -205,7 +182,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     }
   }
 
-  // ---------------- Edit bottom sheet ----------------
   void _openEditSheet(Map<String, dynamic> item) {
     showModalBottomSheet(
       context: context,
@@ -224,13 +200,9 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ⚠️ FIX (Boss request — "top me jo likha hai use hata ke likho My
-      // Videos"): the header was showing the raw translation key
-      // ('myvideos_title') because that key isn't set up in the
-      // translation files yet. Hardcoded to "My Videos" so it always
-      // reads correctly regardless of translation-file status — swap
-      // back to context.tr('myvideos_title') once that key is added.
-      appBar: AppBar(title: const Text('My Videos')),
+      // ⚠️ FIX: 'myvideos_title' key is now added to app_strings.dart, so
+      // this reads from translations again instead of a hardcoded string.
+      appBar: AppBar(title: Text(context.tr('myvideos_title'))),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -250,11 +222,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     );
   }
 
-  // ⚠️ REDESIGNED (Boss request — "square/grid card ko horizontal me
-  // karo"): was thumbnail-on-top / title-below / menu-below (a tall
-  // square-ish stacked card). Now a horizontal row — a fixed-width
-  // thumbnail on the left, title + the 3-dot menu on the right — matching
-  // the reference layout.
   Widget _videoCard(Map<String, dynamic> item) {
     final thumb = (item['thumbnail'] ?? '').toString();
     final id = _idOf(item);
@@ -308,8 +275,6 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
               ),
             ),
           ),
-          // 3-dot menu — now top-right of the row instead of centered
-          // below a square card.
           GestureDetector(
             onTap: () => _showCardMenu(item),
             child: Padding(
@@ -367,7 +332,6 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
     if (img != null) setState(() => _newThumbnail = File(img.path));
   }
 
-  // ---------------- AI generate, gated ----------------
   Future<void> _generate(String field) async {
     if (!widget.aiEligible) {
       Navigator.of(context).pop();
@@ -410,8 +374,6 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
       }
 
       if (widget.item['ytVideoId'] != null) {
-        // Already live (or matched to a live YouTube video) — write
-        // straight to YouTube, the actual source of truth.
         await ApiService.instance.updateYoutubeVideoMetadata(
           widget.item['ytVideoId'],
           title: _titleCtrl.text.trim(),
@@ -419,7 +381,6 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
           tags: tagsList,
         );
       } else if (widget.item['dbId'] != null) {
-        // Still queued in TubePilot, not live yet.
         await ApiService.instance.updateVideoMetadata(
           widget.item['dbId'],
           platform: 'youtube',
@@ -441,12 +402,6 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
     }
   }
 
-  // ⚠️ SIMPLIFIED (Boss request — "myvideos_ai_generate jaha jaha hai use
-  // hata ke box ke neeche right me karo"): this used to render the field
-  // label AND the AI-generate link side-by-side in one row above the
-  // TextField. Now it's just the plain label — the AI-generate control
-  // moved to its own widget (_aiGenerateRow below), placed AFTER each
-  // TextField instead of above it.
   Widget _fieldLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 6),
@@ -454,8 +409,6 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
     );
   }
 
-  // ⚠️ NEW — the AI-generate control itself, now right-aligned directly
-  // under its field's box instead of sitting next to the label above it.
   Widget _aiGenerateRow(String field) {
     return Align(
       alignment: Alignment.centerRight,
@@ -468,6 +421,8 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
             children: [
               Icon(Icons.auto_awesome_rounded, size: 14, color: widget.aiEligible ? AppColors.purpleLight : context.surfaces.textDim),
               const SizedBox(width: 4),
+              // ⚠️ FIX: 'myvideos_ai_generate' key is now added to
+              // app_strings.dart — reads from translations again.
               Text(context.tr('myvideos_ai_generate'), style: TextStyle(color: widget.aiEligible ? AppColors.purpleLight : context.surfaces.textDim, fontSize: 12, fontWeight: FontWeight.w600)),
               if (!widget.aiEligible) ...[
                 const SizedBox(width: 4),
@@ -518,6 +473,8 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 6),
+                // ⚠️ FIX: 'myvideos_change_thumbnail' key is now added to
+                // app_strings.dart — reads from translations again.
                 child: Text(context.tr('myvideos_change_thumbnail'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
               ),
 
@@ -537,6 +494,8 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
               _aiGenerateRow('tags'),
 
               const SizedBox(height: 20),
+              // ⚠️ FIX: 'save_btn' key is now added to app_strings.dart —
+              // reads from translations again.
               GradientButton(label: context.tr('save_btn'), loading: _saving, onPressed: _save),
             ],
           ),

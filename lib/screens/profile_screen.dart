@@ -36,10 +36,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // ⚠️ These are now KEYS into app_strings.dart, not display text — the
-  // label shown to the user (and passed back to _sendSupportEmail) is
-  // resolved via context.tr(key) at render time, so this list follows the
-  // selected app language everywhere it's used.
   static const _supportCategoryKeys = [
     'support_cat_payment',
     'support_cat_upload_failed',
@@ -50,37 +46,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'support_cat_other',
   ];
 
-  Map<String, dynamic>? _metaStatus; // { facebook: {...}|null }
+  Map<String, dynamic>? _metaStatus;
   bool _loadingMeta = true;
 
-  // Live YouTube channel info (subscriber count etc.) — fetched separately
-  // from AuthProvider's cached user object, because GET /youtube/channel
-  // now refreshes the subscriber count live from the YouTube API on every
-  // call (see routes/youtube.js) instead of returning a value that was only
-  // ever set once at OAuth-connect time. AuthProvider's user['youtubeChannel']
-  // is still used as the "is a channel connected at all" source of truth and
-  // as an instant-paint fallback while this live fetch is in flight.
   Map<String, dynamic>? _liveChannel;
   bool _loadingChannel = false;
-
-  // DIAGNOSTIC: if the live fetch silently fails (network error, expired
-  // token that also fails to refresh, backend error, etc.) the UI used to
-  // just fall back to the stale cached count with zero visibility into why.
-  // This flag surfaces that failure state so the subscriber card can show
-  // a small "tap to retry" hint instead of quietly showing a wrong number.
   bool _liveChannelFetchFailed = false;
 
   @override
   void initState() {
     super.initState();
-    // IMPORTANT: refreshUser() and _loadLiveChannel() both read
-    // AuthProvider's cached user. Previously refreshUser() was fired via
-    // addPostFrameCallback (fire-and-forget) while _loadLiveChannel() ran
-    // immediately after on the OLD cached user — meaning if the cached
-    // 'youtubeChannel' was stale/null at that exact moment, the live fetch
-    // could silently no-op. Now we await refreshUser() first, THEN run
-    // _loadLiveChannel(), so it always reads the freshest possible cached
-    // user before deciding whether a channel is connected.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<AuthProvider>().refreshUser();
       if (mounted) _loadLiveChannel();
@@ -101,7 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadLiveChannel() async {
     final user = context.read<AuthProvider>().user ?? {};
-    if (user['youtubeChannel'] == null) return; // nothing connected, skip the call
+    if (user['youtubeChannel'] == null) return;
     setState(() {
       _loadingChannel = true;
       _liveChannelFetchFailed = false;
@@ -114,15 +89,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _liveChannelFetchFailed = false;
         });
       }
-      // DIAGNOSTIC: log so you can confirm in `flutter run` / adb logcat
-      // output whether the live fetch actually returned fresh data, and
-      // what subscriberCount it came back with.
       debugPrint('✅ [Profile] Live YouTube channel fetched: subscriberCount=${res['channel']?['subscriberCount']}, stale=${res['stale']}');
     } catch (e) {
-      // Previously this failed completely silently — you'd just see the
-      // stale cached count with no indication anything went wrong. Now it
-      // logs the real error and flags the UI so you can tell "0 subscribers"
-      // apart from "fetch is failing".
       debugPrint('❌ [Profile] Live YouTube channel fetch FAILED: $e');
       if (mounted) setState(() => _liveChannelFetchFailed = true);
     } finally {
@@ -371,12 +339,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Instagram is never connected independently — the backend auto-attaches
-  /// whichever Instagram Business Account is linked to the chosen Facebook
-  /// Page (see routes/meta.js). This tile just reflects that: shows the
-  /// linked @username + a green [Connected] chip when present, or a "Linked
-  /// automatically with Facebook" hint when Facebook is connected but the
-  /// Page has no Instagram account attached.
   Widget _instagramTile(Map<String, dynamic>? instagram, bool facebookIsConnected) {
     final connected = instagram != null;
     final username = instagram?['igUsername'] as String?;
@@ -514,9 +476,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(width: 8),
                         SizedBox(width: 11, height: 11, child: CircularProgressIndicator(strokeWidth: 1.6, color: context.surfaces.textDim)),
                       ],
-                      // DIAGNOSTIC: small tap-to-retry hint if the live fetch
-                      // failed, so a stale/wrong count is never shown without
-                      // any indication that something's off.
                       if (_liveChannelFetchFailed && !_loadingChannel) ...[
                         const SizedBox(width: 8),
                         GestureDetector(
@@ -547,10 +506,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Watching LanguageProvider here (even though this screen doesn't call
-    // context.tr() everywhere yet) makes the whole ProfileScreen rebuild
-    // when the language changes, so the menu labels below — which DO use
-    // context.tr() — actually update live instead of needing a re-navigate.
     context.watch<LanguageProvider>();
 
     final auth = context.watch<AuthProvider>();
@@ -568,31 +523,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _youtubeSubscriberCard(channel),
           const SizedBox(height: 16),
 
-          // ⚠️ [ANIK REQUEST - YouTube-only launch]: entire "Connected
-          // Accounts" section hidden — Meta business verification pending.
-          // Untouched below, uncomment to restore.
-          //
-          // Text(context.tr('connected_accounts'), style: TextStyle(color: context.surfaces.textDim, fontSize: 13)),
-          // const SizedBox(height: 8),
-          // if (_loadingMeta)
-          //   const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: CircularProgressIndicator(color: AppColors.purple)))
-          // else
-          //   Row(
-          //     crossAxisAlignment: CrossAxisAlignment.start,
-          //     children: [
-          //       _connectTile(
-          //         icon: const FacebookIcon(size: 20),
-          //         label: facebook?['pageName'] ?? 'Facebook',
-          //         status: facebook == null ? context.tr('disconnect_action') : context.tr('connected_label'),
-          //         connected: facebook != null,
-          //         onTap: facebook == null ? _connectMeta : _disconnectFacebook,
-          //       ),
-          //       const SizedBox(width: 10),
-          //       _instagramTile(instagram, facebook != null),
-          //     ],
-          //   ),
-          // const SizedBox(height: 20),
-
           // ---------------- Creator OS (VidIQ-style tools) ----------------
           Text(context.tr('creator_os_section'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
@@ -605,6 +535,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _menuRow(Icons.title_rounded, context.tr('menu_ai_title_desc'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiTitleDescriptionScreen()))),
               _divider(),
+              // ⚠️ Uses translation key (multi-language support) — NOT
+              // hardcoded, so it follows the selected app language. Update
+              // the VALUE of 'menu_seo_optimizer' in app_strings.dart to
+              // "Video SEO Optimizer" (all languages) — see keys below.
               _menuRow(Icons.query_stats_rounded, context.tr('menu_seo_optimizer'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SeoOptimizerScreen()))),
               _divider(),
@@ -617,11 +551,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _menuRow(Icons.image_search_rounded, context.tr('menu_visual_analyzer'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VisualAnalyzerScreen()))),
               _divider(),
+              // ⚠️ Uses translation key (multi-language support) — NOT
+              // hardcoded. Update the VALUE of 'menu_channel_audit' in
+              // app_strings.dart to "Channel SEO Score" (all languages).
               _menuRow(Icons.fact_check_rounded, context.tr('menu_channel_audit'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChannelAuditScreen()))),
               _divider(),
-              // ⚠️ NEW (Boss request — "My Videos" screen was missing an
-              // entry point in Profile entirely, so nobody could open it).
               _menuRow(Icons.video_collection_rounded, context.tr('menu_my_videos'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyVideosScreen()))),
               _divider(),
@@ -631,17 +566,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 20),
 
+          // ⚠️ REORDERED (Boss request — "Subscription & Wallet ko Buy
+          // Diamonds ke upar karo"): subscription_wallet row now comes
+          // FIRST, buy_diamonds row moved second. Nothing else in this
+          // block changed.
           Container(
             decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
             child: Column(children: [
+              _menuRow(Icons.diamond_rounded, context.tr('subscription_wallet'), AppColors.purple,
+                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletScreen()))),
+              _divider(),
               _menuRow(Icons.shopping_bag_rounded, context.tr('buy_diamonds'), AppColors.diamond,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen()))),
               _divider(),
               _menuRow(Icons.card_giftcard_rounded, context.tr('menu_gift_code'), AppColors.diamond,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GiftCodeScreen()))),
-              _divider(),
-              _menuRow(Icons.diamond_rounded, context.tr('subscription_wallet'), AppColors.purple,
-                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletScreen()))),
               _divider(),
               _menuRow(Icons.card_giftcard_rounded, context.tr('refer_earn'), AppColors.green,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReferEarnScreen()))),

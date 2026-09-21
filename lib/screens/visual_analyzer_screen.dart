@@ -19,6 +19,14 @@ import 'diamond_store_screen.dart';
 /// no ML-based composition/face-detection scoring here (that would need a
 /// vision model this app doesn't have access to); this is a genuine but
 /// simple contrast+brightness heuristic, labelled as such.
+///
+/// ⚠️ UPDATED (Boss request — "upload karne ke baad analyse button add
+/// karo"): picking an image no longer auto-triggers analysis. It now just
+/// loads the image into the mockup preview, and a dedicated "Analyze"
+/// button appears below it — the user taps it when ready (e.g. after also
+/// typing/adjusting the title, since the mockup preview uses that same
+/// title text). The button is also how a user re-runs analysis on the
+/// SAME image after changing something, without having to re-pick it.
 class VisualAnalyzerScreen extends StatefulWidget {
   const VisualAnalyzerScreen({super.key});
   @override
@@ -30,26 +38,21 @@ enum _MockupTab { instagram, youtube, facebook }
 class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
   File? _image;
   final _titleCtrl = TextEditingController(text: 'Your Video Title Here');
-  // ⚠️ UPDATE (Boss request — "Facebook/Instagram verification pending,
-  // YouTube verification complete, sirf YouTube launch kar rahe hain"):
-  // default tab changed from instagram -> youtube, since Instagram/
-  // Facebook are no longer selectable below (the SegmentedButton selector
-  // itself has now been removed entirely — see next comment). The
-  // _MockupTab enum and every mockupFrame() case for instagram/facebook
-  // are UNCHANGED — adding the selector UI back below with all three
-  // segments brings this all back instantly.
   final _MockupTab _tab = _MockupTab.youtube;
   bool _analyzing = false;
   double? _contrastScore; // 0-100
   double? _brightness; // 0-255
 
-  // ⚠️ NEW (Boss request — Gemini AI-fix prompt card, diamond-gated):
-  // null while loading, then the user's current diamond balance from
-  // GET /api/wallet. `_isUnlocked` gates both the full prompt text and
-  // the direct Gemini-app open action. On fetch failure, defaults to 0
-  // (locked) — safest default, never silently unlocks a paid feature.
+  // ⚠️ NEW: tracks whether the CURRENT image has already been analyzed at
+  // least once — used to swap the button's label between "Analyze" (first
+  // run) and "Re-analyze" (after a result is already showing), and to
+  // decide whether the score card is stale relative to a freshly picked
+  // image (score/brightness are cleared on every new pick, so this stays
+  // in sync automatically).
+  bool get _hasResult => _contrastScore != null && _brightness != null;
+
   int? _diamondBalance;
-  static const int _previewWordCount = 13; // "10-15 words" — used for both the locked-state preview and the locked-state partial copy.
+  static const int _previewWordCount = 13;
 
   bool get _isUnlocked => (_diamondBalance ?? 0) > 0;
 
@@ -73,12 +76,13 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
         _diamondBalance = (res['wallet']?['diamondBalance'] as int?) ?? 0;
       });
     } catch (_) {
-      // Silent fail — if balance can't be fetched, treat as locked (0)
-      // rather than risk unlocking a paid feature on an error.
       if (mounted) setState(() => _diamondBalance = 0);
     }
   }
 
+  // ⚠️ UPDATED: no longer calls _analyze() automatically. Just loads the
+  // picked file into the mockup preview and clears any previous score, so
+  // the "Analyze" button starts fresh for the new image.
   Future<void> _pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (picked == null) return;
@@ -87,7 +91,6 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
       _contrastScore = null;
       _brightness = null;
     });
-    await _analyze();
   }
 
   Future<void> _analyze() async {
@@ -115,6 +118,11 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
         _brightness = mean;
         _contrastScore = normalizedContrast;
       });
+
+      // Small confirmation so a re-analyze after tweaking the title feels
+      // responsive even though the underlying pixels (and therefore the
+      // score) haven't actually changed.
+      if (mounted) showToast(context, context.tr('visual_analysis_done_toast'), isSuccess: true);
     } finally {
       if (mounted) setState(() => _analyzing = false);
     }
@@ -134,10 +142,6 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
     return context.tr('visual_note_good_balance');
   }
 
-  // ⚠️ NEW: builds the Gemini fix-it prompt text matching whichever issue
-  // _readabilityNote() detected. Returns '' when there's no issue (i.e.
-  // the thumbnail is already well balanced) — used as the signal for
-  // whether to show the AI-fix card at all.
   String _generateGeminiPrompt() {
     if (_contrastScore == null || _brightness == null) return '';
     if (_contrastScore! < 35) {
@@ -153,18 +157,11 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
   }
 
   Future<void> _openGeminiApp() async {
-    // Universal link — routes to the installed Gemini app on Android/iOS
-    // if it's set up as the verified app link, otherwise falls back to
-    // opening it in the browser. Safer than guessing an unconfirmed
-    // custom URL scheme for the native app.
     final uri = Uri.parse('https://gemini.google.com/app');
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched) await launchUrl(uri, mode: LaunchMode.platformDefault);
-    } catch (_) {
-      // Swallow — worst case the user just doesn't get redirected, but
-      // the prompt is already on their clipboard by this point.
-    }
+    } catch (_) {}
   }
 
   Future<void> _handleCopyPrompt(String fullPrompt, String partialPrompt) async {
@@ -212,10 +209,6 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
             const Text('Fix it with AI', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
           ]),
           const SizedBox(height: 10),
-          // Preview text (first _previewWordCount words) is always shown
-          // in the clear. The rest of the prompt is only shown in the
-          // clear once unlocked — while locked, it's rendered blurred via
-          // ImageFiltered so the words underneath aren't actually readable.
           Text.rich(
             TextSpan(
               style: TextStyle(fontSize: 12.5, height: 1.4, color: context.surfaces.textDim),
@@ -251,9 +244,6 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // ⚠️ Real transparent Gemini icon — assets/gemini_icon.png,
-              // no background/container behind it (registered in
-              // pubspec.yaml under flutter > assets).
               Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -350,6 +340,22 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
     return Image.file(_image!, fit: BoxFit.cover, width: double.infinity);
   }
 
+  // ⚠️ NEW: the "Analyze" / "Re-analyze" button. Only rendered once an
+  // image is picked. Disabled while _analyzing is true (GradientButton's
+  // own loading state already shows a spinner + blocks double-taps).
+  Widget _analyzeButton() {
+    if (_image == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: GradientButton(
+        label: _hasResult ? context.tr('visual_reanalyze_btn') : context.tr('visual_analyze_btn'),
+        icon: Icons.insights_rounded,
+        loading: _analyzing,
+        onPressed: _analyze,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -370,30 +376,35 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
                         Text(context.tr('visual_tap_to_pick'), style: const TextStyle(fontWeight: FontWeight.w600)),
                       ]),
                     )
-                  : ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_image!, fit: BoxFit.cover, width: double.infinity)),
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_image!, fit: BoxFit.cover, width: double.infinity)),
+                        // Small "change image" affordance so re-tapping the
+                        // preview to pick a different file is still obvious
+                        // now that tapping it no longer auto-analyzes.
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(999)),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.sync_rounded, size: 13, color: Colors.white),
+                              const SizedBox(width: 4),
+                              Text(context.tr('visual_change_image'), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                            ]),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
           const SizedBox(height: 16),
           TextFormField(controller: _titleCtrl, onChanged: (_) => setState(() {}), decoration: InputDecoration(hintText: context.tr('visual_preview_title_hint'))),
           const SizedBox(height: 20),
-          // ⚠️ REMOVED (Boss request — "YouTube Mobile ko permanent kar do,
-          // frontend se selector hata do"): the SegmentedButton that used
-          // to let the user pick a platform tab has been removed entirely.
-          // `_tab` above is now a `final` locked to `_MockupTab.youtube` —
-          // there is no way left in the UI to change it. The _MockupTab
-          // enum and every mockupFrame() case for instagram/facebook are
-          // still UNCHANGED above; to restore platform switching, make
-          // `_tab` non-final again and add back:
-          //   SegmentedButton<_MockupTab>(
-          //     segments: [
-          //       ButtonSegment(value: _MockupTab.instagram, label: Text(context.tr('visual_tab_instagram'))),
-          //       ButtonSegment(value: _MockupTab.youtube, label: Text(context.tr('visual_tab_youtube'))),
-          //       ButtonSegment(value: _MockupTab.facebook, label: Text(context.tr('visual_tab_facebook'))),
-          //     ],
-          //     selected: {_tab},
-          //     onSelectionChanged: (s) => setState(() => _tab = s.first),
-          //   ),
           _mockupFrame(),
+          _analyzeButton(),
           if (_image != null) ...[
             const SizedBox(height: 24),
             Text(context.tr('visual_score_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
@@ -422,11 +433,20 @@ class _VisualAnalyzerScreenState extends State<VisualAnalyzerScreen> {
                   ],
                 ),
               ),
-              // ⚠️ NEW: only rendered when _generateGeminiPrompt() returns
-              // non-empty (i.e. an actual issue was detected) — a
-              // well-balanced thumbnail shows no fix-it card at all.
               _geminiFixCard(),
-            ],
+            ] else
+              // ⚠️ NEW: empty-state hint shown between picking the image
+              // and tapping Analyze, so the screen doesn't look "stuck" or
+              // broken while waiting for the user to tap the button above.
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
+                child: Row(children: [
+                  Icon(Icons.touch_app_rounded, color: context.surfaces.textDim, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(context.tr('visual_tap_analyze_hint'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5))),
+                ]),
+              ),
           ],
         ],
       ),

@@ -20,6 +20,7 @@ dependencies:
 
   # Local persistence (theme preference, tokens)
   shared_preferences: ^2.2.3
+  flutter_secure_storage: ^9.2.2
 
   # Auth
   google_sign_in: ^7.2.0

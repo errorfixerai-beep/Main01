@@ -12,16 +12,14 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../providers/language_provider.dart';
 
-// ⚠️ BOSS UPDATE (plan/quota system — real per-tier features):
-// Previously every card rendered the SAME fixed `facilityKeys` list
-// (title/description/thumbnail/SEO/competitor), regardless of package —
-// so a ₹10 buyer's screen looked identical to a ₹200 buyer's screen even
-// though the backend only ever granted the ₹10 buyer 1 thumbnail prompt
-// and no SEO/Competitor access at all. That mismatch is fixed here:
-// each package now renders straight from its own `features` array
-// (label + included flag) coming from GET /diamonds/packages — no more
-// static per-card checklist. Included → green tick; not included → grey
-// cross, so the upgrade incentive is visible on the card itself.
+/// Renders each package's "What's included" checklist straight from the
+/// backend's `features` array (label + included flag) — see
+/// routes/diamond.js buildFeatureList(). Included → green tick; not
+/// included → grey cross, so the upgrade incentive is visible on the card
+/// itself. Labels now explicitly distinguish "Video SEO Optimizer"
+/// (unlocks on any paid pack) from "Channel SEO Score (Suggestions)"
+/// (unlocks only on ₹100+ / advance), matching the two different gates
+/// enforced server-side in routes/ai.js and routes/analytics.js.
 class DiamondStoreScreen extends StatefulWidget {
   const DiamondStoreScreen({super.key});
   @override
@@ -227,10 +225,6 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
     final isPaying = _payingDiamonds == diamonds;
     final perRupee = price > 0 ? (diamonds / price) : 0;
 
-    // ⚠️ NEW: per-package feature list straight from the backend — each
-    // item is {"label": String, "included": bool}. Falls back to an empty
-    // list (renders no rows, never crashes) if an older cached response
-    // without `features` ever slips through.
     final List<dynamic> features = (p['features'] as List<dynamic>?) ?? [];
 
     String? badgeText;
@@ -312,11 +306,6 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
                 style: TextStyle(color: context.surfaces.textDim, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2),
               ),
               const SizedBox(height: 8),
-              // ⚠️ NEW: renders straight off `features` — included:true =
-              // green tick + normal text; included:false = grey cross +
-              // dimmed/strikethrough-free text (still readable, just
-              // visually deprioritized), so the user sees exactly what
-              // this tier is missing vs a higher one.
               ...features.map((f) {
                 final bool included = f['included'] == true;
                 final String label = f['label'] as String? ?? '';

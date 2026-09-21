@@ -1,5 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -8,7 +8,16 @@ import '../widgets/common.dart';
 import 'upload_screen.dart';
 import 'diamond_store_screen.dart';
 
-/// Screen 6/7 — GET /api/analytics/audit.
+/// ⚠️ RENAMED (Boss request): "Channel Audit" → "Channel SEO Score" — ties
+/// directly to the Diamond package's seoScoreLevel, but with a STRICTER
+/// gate than Video SEO Optimizer.
+///
+/// Rule: the health score + stats grid are ALWAYS shown, on any plan
+/// (even no plan at all). Suggestions/recommendations ONLY show when the
+/// backend flags `channelSeoUnlocked: true`, which only happens for
+/// seoScoreLevel === 'advance' (₹100+ packs). No blurred preview when
+/// locked — the recommendations section is replaced by a single upgrade
+/// banner, nothing partial is shown.
 class ChannelAuditScreen extends StatefulWidget {
   const ChannelAuditScreen({super.key});
   @override
@@ -64,7 +73,7 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
   }
 
   void _goToUpgrade() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen())).then((_) => _load());
   }
 
   IconData _iconForType(String type) {
@@ -89,7 +98,7 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('channel_audit_title'))),
+      appBar: AppBar(title: Text(context.tr('channel_seo_score_title'))),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -110,6 +119,12 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
   Widget _buildAudit(Map<String, dynamic> audit) {
     final score = _healthScore(audit);
     final color = _healthColor(score);
+    // Backend always returns `channelSeoUnlocked` + `recommendations`
+    // (empty when locked). When true, recommendations always has at least
+    // a "healthy" fallback entry if nothing is actually wrong — so this
+    // list is ALWAYS rendered when unlocked, regardless of health score,
+    // per Boss's "90% ke upar bhi suggestion dikhna chahiye" rule.
+    final unlocked = audit['channelSeoUnlocked'] == true;
     final recommendations = (audit['recommendations'] as List? ?? []).cast<Map<String, dynamic>>();
 
     return ListView(
@@ -128,11 +143,6 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
           ]),
         ),
         const SizedBox(height: 20),
-        // ⚠️ FIX (Boss request — "BOTTOM OVERFLOWED BY 1.3 PIXELS"):
-        // childAspectRatio of 1.5 didn't leave enough cell height for a
-        // 2-line label (e.g. Hindi "शॉर्ट्स : लॉन्ग अनुपात (7 दिन)" wraps
-        // to 2 lines). Lowered to 1.15 (taller cells) so any 2-line label
-        // in any supported language fits without overflowing.
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
@@ -141,14 +151,8 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
           crossAxisSpacing: 12,
           childAspectRatio: 1.15,
           children: [
-            StatCard(
-              label: context.tr('audit_engagement_pct'),
-              value: audit['engagementPct'] != null ? '${audit['engagementPct']}%' : '—',
-            ),
-            StatCard(
-              label: context.tr('audit_shorts_long_ratio'),
-              value: audit['weeklyShortToLongRatio'] != null ? '${audit['weeklyShortToLongRatio']}' : '—',
-            ),
+            StatCard(label: context.tr('audit_engagement_pct'), value: audit['engagementPct'] != null ? '${audit['engagementPct']}%' : '—'),
+            StatCard(label: context.tr('audit_shorts_long_ratio'), value: audit['weeklyShortToLongRatio'] != null ? '${audit['weeklyShortToLongRatio']}' : '—'),
             StatCard(label: context.tr('audit_subscribers'), value: '${audit['subscriberCount'] ?? '—'}'),
             StatCard(label: context.tr('audit_uploads_7d'), value: '${audit['recentUploadsLast7Days'] ?? 0}'),
           ],
@@ -156,7 +160,32 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
         const SizedBox(height: 24),
         Text(context.tr('audit_recommendations'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
-        ...recommendations.map((r) => _recommendationCard(r)),
+
+        // Locked state: NO recommendations rendered at all (no messages,
+        // no blur preview) — just one upgrade banner, per Boss's
+        // "suggestion mat do" instruction. Score/stats above stay full.
+        if (!unlocked)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.diamond.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.lock_rounded, color: AppColors.diamond, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(context.tr('audit_channel_seo_locked_notice'), style: const TextStyle(fontSize: 13, height: 1.4))),
+                ]),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(onPressed: _goToUpgrade, child: Text(context.tr('audit_channel_seo_upgrade_btn'))),
+                ),
+              ],
+            ),
+          )
+        else
+          ...recommendations.map((r) => _recommendationCard(r)),
       ],
     );
   }
@@ -190,6 +219,9 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     );
   }
 
+  // Only ever rendered when unlocked == true (see _buildAudit), so
+  // Copy/Gemini here are real, immediate actions — no redirect-to-upgrade
+  // needed inside a card that's already gated at the section level.
   Widget _recommendationCard(Map<String, dynamic> rec) {
     final type = rec['type'] as String? ?? '';
     final message = rec['message'] as String? ?? '';
@@ -210,12 +242,16 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
 
           if (prompt != null && prompt.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _promptPreview(prompt),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(10)),
+              child: Text(prompt, style: TextStyle(fontSize: 12, color: context.surfaces.textDim, height: 1.4)),
+            ),
             const SizedBox(height: 10),
             Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _goToUpgrade,
+                  onPressed: () => _copyPrompt(prompt),
                   icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.diamond),
                   label: Text(context.tr('audit_copy_prompt_btn')),
                 ),
@@ -223,13 +259,8 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _goToUpgrade,
-                  icon: Image.asset(
-                    'assets/gemini_icon.png',
-                    width: 16,
-                    height: 16,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.auto_awesome_rounded, size: 15),
-                  ),
+                  onPressed: () => _copyPrompt(prompt),
+                  icon: Image.asset('assets/gemini_icon.png', width: 16, height: 16, errorBuilder: (_, __, ___) => const Icon(Icons.auto_awesome_rounded, size: 15)),
                   label: Text(context.tr('audit_open_gemini_btn')),
                 ),
               ),
@@ -249,53 +280,8 @@ class _ChannelAuditScreenState extends State<ChannelAuditScreen> {
     );
   }
 
-  Widget _promptPreview(String prompt) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: context.surfaces.card2, borderRadius: BorderRadius.circular(10)),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Stack(
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 44),
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 2.4, sigmaY: 2.4),
-                child: Text(
-                  prompt,
-                  style: TextStyle(fontSize: 12, color: context.surfaces.textDim, height: 1.4),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, context.surfaces.card2.withValues(alpha: 0.92)],
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.lock_rounded, size: 13, color: AppColors.diamond),
-                    const SizedBox(width: 4),
-                    Text(
-                      context.tr('audit_prompt_locked_label'),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.diamond),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  void _copyPrompt(String prompt) {
+    Clipboard.setData(ClipboardData(text: prompt));
+    showToast(context, context.tr('atd_copied_toast'), isSuccess: true);
   }
 }

@@ -6,16 +6,20 @@ import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/apply_to_video_sheet.dart';
+import 'diamond_store_screen.dart';
 
-/// Screen 2/7 — POST /api/ai/seo-score.
+/// ⚠️ RENAMED (Boss request): "SEO Optimizer" → "Video SEO Optimizer" —
+/// this screen optimizes ONE selected video's title/description/tags.
 ///
-/// ⚠️ FIX (Boss request — "dropdown sahi se nahin ho raha, ise sahi
-/// karo"): Platform was a `CustomDropdown` (DropdownButtonFormField) whose
-/// opened menu is a separate Overlay that can render as a top-overlapping
-/// popup (see reported screenshot). Swapped to the same PickerField +
-/// bottom-sheet pattern already used on the AI Ideas screen — a fixed,
-/// full-width sheet that slides up from the bottom instead of overlaying
-/// the field.
+/// ⚠️ NEW: video-select dropdown at the top (from My Videos / library) —
+/// picking a video auto-fills Title/Description/Tags instead of forcing
+/// the user to retype them.
+///
+/// ⚠️ NEW: unlock check — seoScoreLevel != 'none' (ANY purchased pack,
+/// including ₹10) unlocks the FULL problems list + real video score + tags.
+/// A user with no pack at all sees only 1-2 free issue lines, rest blurred.
+/// This is a LOOSER threshold than Channel SEO Score (channel_audit_screen)
+/// which requires 'advance' (₹100+) specifically.
 class SeoOptimizerScreen extends StatefulWidget {
   const SeoOptimizerScreen({super.key});
   @override
@@ -23,14 +27,8 @@ class SeoOptimizerScreen extends StatefulWidget {
 }
 
 class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
-  // ⚠️ [ANIK REQUEST - YouTube-only launch]: Instagram/Facebook options
-  // hidden from the platform picker — Meta business verification pending.
-  // _platform state and the SEO score API call (platform: _platform) are
-  // untouched. Uncomment to restore.
   static const _platforms = {
     'youtube': 'platform_youtube_label',
-    // 'instagram': 'platform_instagram_label',
-    // 'facebook': 'platform_facebook_label',
   };
 
   final _titleCtrl = TextEditingController();
@@ -38,8 +36,19 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
   final _tagsCtrl = TextEditingController();
   String _platform = 'youtube';
   bool _loading = false;
+  bool _loadingVideos = true;
+  bool _unlocked = false; // seoScoreLevel != 'none'
+
+  List<Map<String, dynamic>> _videos = [];
+  String? _selectedVideoLabel;
 
   Map<String, dynamic>? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVideosAndPlan();
+  }
 
   @override
   void dispose() {
@@ -49,9 +58,40 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
     super.dispose();
   }
 
-  Future<void> _pickPlatform() async {
-    final options = _platforms.keys.toList();
-    final picked = await showModalBottomSheet<String>(
+  Future<void> _loadVideosAndPlan() async {
+    setState(() => _loadingVideos = true);
+    try {
+      final results = await Future.wait([
+        ApiService.instance.getVideoLibrary(),
+        ApiService.instance.dashboard(),
+      ]);
+      final dash = results[1]['data'];
+      // ASSUMPTION: dashboard response carries `seoScoreLevel`
+      // ('none'/'basic'/'advance') on the user object — backend's
+      // GET /api/dashboard route needs to expose this field for the
+      // unlock check to work correctly.
+      final level = dash?['seoScoreLevel'] as String?;
+      setState(() {
+        _videos = ((results[0]['videos'] as List?) ?? []).cast<Map<String, dynamic>>();
+        _unlocked = level != null && level != 'none';
+      });
+    } catch (e) {
+      if (mounted) showApiError(context, e);
+    } finally {
+      if (mounted) setState(() => _loadingVideos = false);
+    }
+  }
+
+  void _goToUpgrade() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiamondStoreScreen())).then((_) => _loadVideosAndPlan());
+  }
+
+  Future<void> _pickVideo() async {
+    if (_videos.isEmpty) {
+      showToast(context, context.tr('vso_no_videos'), isError: true);
+      return;
+    }
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -67,21 +107,30 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(context.tr('seo_platform_label'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  child: Text(context.tr('vso_select_video_label'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 ),
               ),
               const SizedBox(height: 6),
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
-                  itemCount: options.length,
+                  itemCount: _videos.length,
                   itemBuilder: (_, i) {
-                    final key = options[i];
-                    final isSelected = key == _platform;
+                    final v = _videos[i];
+                    final title = (v['title'] ?? '').toString().isNotEmpty ? v['title'].toString() : context.tr('apply_to_video_untitled');
                     return ListTile(
-                      title: Text(context.tr(_platforms[key]!), style: TextStyle(fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500)),
-                      trailing: isSelected ? const Icon(Icons.check_rounded, color: AppColors.purple) : null,
-                      onTap: () => Navigator.of(sheetContext).pop(key),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: 48,
+                          height: 32,
+                          child: (v['thumbnail'] ?? '').toString().isNotEmpty
+                              ? Image.network(v['thumbnail'], fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: context.surfaces.card2))
+                              : Container(color: context.surfaces.card2),
+                        ),
+                      ),
+                      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      onTap: () => Navigator.of(sheetContext).pop(v),
                     );
                   },
                 ),
@@ -91,7 +140,16 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
         ),
       ),
     );
-    if (picked != null) setState(() => _platform = picked);
+    if (picked != null) {
+      setState(() {
+        _selectedVideoLabel = (picked['title'] ?? '').toString();
+        _titleCtrl.text = (picked['title'] ?? '').toString();
+        _descCtrl.text = (picked['description'] ?? '').toString();
+        final tags = (picked['tags'] as List? ?? []).cast<String>();
+        _tagsCtrl.text = tags.join(', ');
+        _result = null;
+      });
+    }
   }
 
   Future<void> _analyze() async {
@@ -176,24 +234,88 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
     );
   }
 
+  /// Real "what's wrong with this video" list, from backend `issues`
+  /// array (utils/groq.js analyzeSeoScore). Unlocked users see everything;
+  /// locked users (no pack at all) see the first 1-2 items only, rest
+  /// blurred with an upgrade CTA.
+  Widget _issuesSection(List<String> issues) {
+    if (issues.isEmpty) return const SizedBox.shrink();
+    final visibleCount = _unlocked ? issues.length : (issues.length < 2 ? issues.length : 2);
+    final hiddenCount = issues.length - visibleCount;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(context.tr('vso_issues_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+          const SizedBox(height: 10),
+          ...issues.take(visibleCount).map((issue) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFF5A623)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(issue, style: const TextStyle(fontSize: 13, height: 1.4))),
+                ]),
+              )),
+          if (hiddenCount > 0) ...[
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  Opacity(
+                    opacity: 0.35,
+                    child: Column(
+                      children: List.generate(hiddenCount, (i) => Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            height: 14,
+                            width: double.infinity,
+                            color: context.surfaces.card2,
+                          )),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Center(
+                      child: OutlinedButton.icon(
+                        onPressed: _goToUpgrade,
+                        icon: const Icon(Icons.lock_rounded, size: 14, color: AppColors.diamond),
+                        label: Text(context.tr('vso_unlock_more_btn').replaceAll('%d', '$hiddenCount')),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final breakdown = _result?['breakdown'] as Map<String, dynamic>?;
-    final recommendedTags = (_result?['recommendedTags'] as List? ?? []).cast<String>();
+    final recommendedTags = _unlocked ? (_result?['recommendedTags'] as List? ?? []).cast<String>() : <String>[];
+    final issues = (_result?['issues'] as List? ?? []).cast<String>();
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('seo_optimizer_title'))),
+      appBar: AppBar(title: Text(context.tr('video_seo_optimizer_title'))),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(context.tr('seo_platform_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          PickerField(
-            value: context.tr(_platforms[_platform] ?? _platform),
-            onTap: _pickPlatform,
-            prefixIcon: const Icon(Icons.hub_rounded, size: 18, color: AppColors.purple),
-          ),
-          const SizedBox(height: 16),
+          if (!_loadingVideos && _videos.isNotEmpty) ...[
+            Text(context.tr('vso_select_video_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            PickerField(
+              value: _selectedVideoLabel ?? context.tr('vso_choose_video_hint'),
+              onTap: _pickVideo,
+              prefixIcon: const Icon(Icons.video_library_outlined, size: 18, color: AppColors.purple),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(context.tr('seo_title_label'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           TextFormField(controller: _titleCtrl, decoration: InputDecoration(hintText: context.tr('seo_title_hint'))),
@@ -214,11 +336,14 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
             const SizedBox(height: 20),
             if (breakdown != null)
               Row(children: [
-                _breakdownBadge('Title Length', (breakdown['titleScore'] as num?)?.toInt() ?? 0),
-                _breakdownBadge('Keyword Density', (breakdown['descScore'] as num?)?.toInt() ?? 0),
-                _breakdownBadge('Tag Relevance', (breakdown['tagScore'] as num?)?.toInt() ?? 0),
+                _breakdownBadge('Title', (breakdown['titleScore'] as num?)?.toInt() ?? 0),
+                _breakdownBadge('Description', (breakdown['descScore'] as num?)?.toInt() ?? 0),
+                _breakdownBadge('Tags', (breakdown['tagScore'] as num?)?.toInt() ?? 0),
               ]),
-            if ((_result!['notes'] ?? '').toString().isNotEmpty) ...[
+
+            _issuesSection(issues),
+
+            if (_unlocked && (_result!['notes'] ?? '').toString().isNotEmpty) ...[
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -226,7 +351,8 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
                 child: Text(_result!['notes'], style: TextStyle(fontSize: 13, color: context.surfaces.textDim)),
               ),
             ],
-            if (recommendedTags.isNotEmpty) ...[
+
+            if (_unlocked && recommendedTags.isNotEmpty) ...[
               const SizedBox(height: 24),
               Row(children: [
                 Text(context.tr('seo_recommended_tags'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5, fontWeight: FontWeight.w700)),
@@ -258,6 +384,21 @@ class _SeoOptimizerScreenState extends State<SeoOptimizerScreen> {
                 label: Text(context.tr('seo_append_to_post_btn')),
               ),
             ],
+
+            if (!_unlocked) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: AppColors.diamond.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
+                child: Row(children: [
+                  const Icon(Icons.diamond_rounded, color: AppColors.diamond, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(context.tr('vso_upgrade_notice'), style: const TextStyle(fontSize: 12.5, height: 1.4))),
+                  TextButton(onPressed: _goToUpgrade, child: Text(context.tr('vso_upgrade_btn'))),
+                ]),
+              ),
+            ],
+
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
