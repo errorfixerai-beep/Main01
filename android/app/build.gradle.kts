@@ -21,6 +21,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    lint {
+        disable += "DeprecatedApi"
+    }
     defaultConfig {
         applicationId = "com.tubepilot.app"
         minSdk = flutter.minSdkVersion
@@ -57,6 +60,12 @@ kotlin {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
+
+tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-deprecation")
+    options.compilerArgs.add("-Xlint:-unchecked")
+}
+
 flutter {
     source = "../.."
 }

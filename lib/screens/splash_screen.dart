@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_provider.dart';
 import '../services/storage_service.dart';
 import '../services/push_service.dart';
@@ -34,27 +33,20 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _logoFade = CurvedAnimation(parent: _logoController, curve: Curves.easeIn);
     _logoController.forward();
 
-    // ⚠️ Photos/Videos permission prompt — previously the app only
-    // ever triggered this reactively, the first time a user tapped
-    // "choose file" on the Upload screen. Requesting it here, during the
-    // same 7s splash window, gives both system permission dialogs the
-    // same upfront treatment. (Logic unchanged — UI only update.)
-    _requestMediaPermissions();
+    // ⚠️ REMOVED (Google Play policy fix): upfront Permission.photos /
+    // Permission.videos requests were removed from here. Google Play's
+    // Photo and Video Permissions policy flags apps that request
+    // READ_MEDIA_IMAGES / READ_MEDIA_VIDEO for infrequent, user-initiated
+    // access like ours — the correct approach is to let image_picker use
+    // the Android Photo Picker (API 33+) reactively, exactly when the user
+    // taps "select a video" / "select a thumbnail" on the Upload screen.
+    // The Photo Picker needs NO permission grant at all, so there is
+    // nothing to request here anymore. See AndroidManifest.xml, where
+    // READ_MEDIA_IMAGES / READ_MEDIA_VIDEO are now explicitly removed via
+    // tools:node="remove" to stop them being merged in from this package's
+    // (and permission_handler's) own manifests.
 
     _decideNextScreen();
-  }
-
-  Future<void> _requestMediaPermissions() async {
-    try {
-      // Permission.photos / Permission.videos map to READ_MEDIA_IMAGES /
-      // READ_MEDIA_VIDEO on Android 13+ (API 33+) and to the legacy
-      // READ_EXTERNAL_STORAGE permission automatically on older Android
-      // versions — matches exactly what's declared in AndroidManifest.xml.
-      await [Permission.photos, Permission.videos].request();
-    } catch (_) {
-      // Non-fatal — image_picker will still prompt reactively later if
-      // this fails to fire for any reason (e.g. platform not supported).
-    }
   }
 
   @override

@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Internet + network state - required for all API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -6,9 +7,25 @@
     <!-- Real phone push notifications (Android 13 / API 33+ requires this explicitly) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Gallery / file access for picking videos, thumbnails, and payment screenshots -->
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Gallery access for picking videos and thumbnails.
+         On Android 13+ (API 33) we deliberately do NOT request
+         READ_MEDIA_VIDEO / READ_MEDIA_IMAGES. image_picker automatically
+         uses the Android Photo Picker on those versions, which grants
+         access to ONLY the single file the user picks — no broad gallery
+         permission is needed, and Google Play's Photo and Video Permissions
+         policy explicitly requires the Photo Picker for apps like ours with
+         infrequent, user-initiated media access.
+
+         The tools:node="remove" entries below are required because
+         image_picker and permission_handler each declare these permissions
+         in their own manifests; without an explicit removal they would be
+         merged into the final APK manifest and Play Console would keep
+         flagging them as undeclared broad permissions.
+
+         On Android 12 and below (API <= 32) there is no Photo Picker, so
+         READ_EXTERNAL_STORAGE is still needed and is capped at API 32. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 

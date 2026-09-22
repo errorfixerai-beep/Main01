@@ -171,7 +171,10 @@ class _UploadScreenState extends State<UploadScreen> {
   // ---------------- Video pickers ----------------
   Future<void> _pickSingleVideo() async {
     final picker = ImagePicker();
-    final video = await picker.pickVideo(source: ImageSource.gallery);
+    final video = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(minutes: 60),
+    );
     if (video != null) {
       setState(() {
         videos.add(_VideoItem(File(video.path)));
@@ -179,13 +182,14 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
-  /// Bulk pick — image_picker doesn't support multi-video selection on all
-  /// platforms, so we loop the single picker with a running "Add another"
-  /// prompt. This keeps the same picker plumbing working everywhere while
-  /// still letting someone build up a batch of 50-100 videos.
+  /// Bulk pick — image_picker uses the Android Photo Picker automatically on
+  /// Android 13+ and does not require READ_MEDIA_* storage permissions.
   Future<void> _pickMoreVideos() async {
     final picker = ImagePicker();
-    final video = await picker.pickVideo(source: ImageSource.gallery);
+    final video = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(minutes: 60),
+    );
     if (video != null) {
       setState(() {
         videos.add(_VideoItem(File(video.path)));
@@ -195,7 +199,12 @@ class _UploadScreenState extends State<UploadScreen> {
 
   Future<void> _pickThumbnail(_VideoItem item) async {
     final picker = ImagePicker();
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
     if (img != null) setState(() => item.thumbFile = File(img.path));
   }
 
