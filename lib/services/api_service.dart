@@ -354,6 +354,47 @@ class ApiService {
   // ------ GET /api/diamonds/my-requests ------ //
   Future<Map<String, dynamic>> myPurchaseRequests() => _request('/diamonds/my-requests');
 
+// -----------------------------------------------------------------------
+// ⚠️ YE POORA BLOCK apni api_service.dart file mein daalo — jahan
+// "// ---------------- Diamonds (Cashfree) ----------------" section
+// khatam hota hai, uske turant baad (myPurchaseRequests() ke neeche).
+// -----------------------------------------------------------------------
+
+  // ---------------- Live Streaming Plans (Day Pass / Month Pass) ----------------
+  // ------ GET /api/live-plans ------ //
+  Future<Map<String, dynamic>> getLivePlans() => _request('/live-plans');
+
+  // ------ POST /api/live-plans/create-order ------ //
+  Future<Map<String, dynamic>> createLivePlanOrder({required String category, required String planName}) =>
+      _request('/live-plans/create-order', method: 'POST', body: {'category': category, 'planName': planName});
+
+  // ------ POST /api/live-plans/verify-payment ------ //
+  Future<Map<String, dynamic>> verifyLivePlanPayment(String orderId) =>
+      _request('/live-plans/verify-payment', method: 'POST', body: {'orderId': orderId});
+
+  // ---------------- Live Streaming (upload + start/stop/status) ----------------
+  // ------ POST /api/live-stream/upload-video ------ //
+  Future<Map<String, dynamic>> uploadLiveVideo(String videoPath) async {
+    final mime = _lookupMimeOrDefault(videoPath, 'video/mp4');
+    final file = await http.MultipartFile.fromPath('video', videoPath, contentType: mime);
+    return uploadMultipart('/live-stream/upload-video', fields: {}, files: [file]);
+  }
+
+  // ------ POST /api/live-stream/start ------ //
+  Future<Map<String, dynamic>> startLiveStream({required String videoUrl, String? title, String? description}) =>
+      _request('/live-stream/start', method: 'POST', body: {
+        'videoUrl': videoUrl,
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+      });
+
+  // ------ POST /api/live-stream/stop ------ //
+  Future<Map<String, dynamic>> stopLiveStream(String streamId) =>
+      _request('/live-stream/stop', method: 'POST', body: {'streamId': streamId});
+
+  // ------ GET /api/live-stream/status/:streamId ------ //
+  Future<Map<String, dynamic>> getLiveStreamStatus(String streamId) => _request('/live-stream/status/$streamId');
+  
   // ---------------- Wallet ----------------
   // ------ GET /api/wallet ------ //
   Future<Map<String, dynamic>> getWallet() => _request('/wallet');

@@ -27,6 +27,7 @@ import 'visual_analyzer_screen.dart';
 import 'channel_audit_screen.dart';
 import 'wallet_refund_logs_screen.dart';
 import 'my_videos_screen.dart';
+import 'live_stream_screen.dart'; // ⚠️ NEW — Live Streaming feature
 
 class ProfileScreen extends StatefulWidget {
   final bool embedded;
@@ -529,6 +530,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
             child: Column(children: [
+              // ⚠️ NEW — Live Streaming feature, top of Creator OS list
+              // (isse feature ki visibility zyada hogi). 'menu_live_stream'
+              // translation key app_strings.dart mein add karni hogi
+              // (jaise baaki menu keys hain — 'en': 'Live Stream',
+              // 'hi': 'लाइव स्ट्रीम', waghera).
+              _menuRow(Icons.podcasts_rounded, context.tr('menu_live_stream'), AppColors.red,
+                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LiveStreamScreen()))),
+              _divider(),
               _menuRow(Icons.auto_awesome_rounded, context.tr('menu_ai_ideas'), AppColors.purple,
                   () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiIdeasScreen()))),
               _divider(),

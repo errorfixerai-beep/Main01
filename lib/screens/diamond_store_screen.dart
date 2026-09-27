@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../providers/language_provider.dart';
+import 'live_plans_screen.dart'; // ⚠️ NEW — top switcher se yahan jaate hain
 
 /// Renders each package's "What's included" checklist straight from the
 /// backend's `features` array (label + included flag) — see
@@ -166,6 +167,48 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
     }
   }
 
+  // ⚠️ NEW — top switcher: "Diamonds" (active, current screen) vs
+  // "Live Stream" (taps navigate to LivePlansScreen). Same visual language
+  // as everything else on this screen — pill-shaped segmented buttons.
+  Widget _topSwitcher() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: context.surfaces.card2,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: context.surfaces.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(color: AppColors.purple, borderRadius: BorderRadius.circular(999)),
+              child: const Center(
+                child: Text('💎 Diamonds', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              ),
+            ),
+          ),
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LivePlansScreen())),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                  child: Text(
+                    '📡 Live Stream',
+                    style: TextStyle(color: context.surfaces.textDim, fontWeight: FontWeight.w700, fontSize: 12.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -186,6 +229,8 @@ class _DiamondStoreScreenState extends State<DiamondStoreScreen> {
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).padding.bottom + 24),
                   children: [
+                    _topSwitcher(),
+                    const SizedBox(height: 20),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(border: Border.all(color: context.surfaces.border), borderRadius: BorderRadius.circular(16)),
