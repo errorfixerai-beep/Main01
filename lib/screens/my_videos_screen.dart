@@ -8,10 +8,15 @@ import '../theme/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import 'diamond_store_screen.dart';
+import 'live_stream_screen.dart';
 
 /// Shows EVERY video the creator has — TubePilot's own queued/uploaded
 /// records AND real videos already live on the connected YouTube channel —
 /// combined via GET /videos/library (backend merges duplicates).
+///
+/// ⚠️ UPDATE (old video live): har video ke menu (⋯) mein "Live karein"
+/// aaya hai, aur AppBar mein Live icon — dono LiveOldVideosScreen kholte
+/// hain (live_stream_screen.dart). Live limits wahi screen sambhalti hai.
 class MyVideosScreen extends StatefulWidget {
   final String? highlightVideoId;
   const MyVideosScreen({super.key, this.highlightVideoId});
@@ -105,6 +110,9 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
           children: [
             Container(width: 40, height: 4, margin: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: context.surfaces.border, borderRadius: BorderRadius.circular(999))),
             ListTile(leading: const Icon(Icons.edit_outlined), title: Text(context.tr('myvideos_edit')), onTap: () => Navigator.pop(sheetContext, 'edit')),
+            // ⚠️ NEW: purani video ko live karo (limits LiveOldVideosScreen check karti hai).
+            // Hardcoded text isliye ki app_strings.dart mein iski key abhi nahi hai.
+            ListTile(leading: const Icon(Icons.podcasts_rounded), title: const Text('Live karein'), onTap: () => Navigator.pop(sheetContext, 'live')),
             ListTile(leading: const Icon(Icons.share_outlined), title: Text(context.tr('myvideos_share')), onTap: () => Navigator.pop(sheetContext, 'share')),
             ListTile(leading: const Icon(Icons.delete_outline_rounded, color: AppColors.red), title: Text(context.tr('myvideos_delete'), style: const TextStyle(color: AppColors.red)), onTap: () => Navigator.pop(sheetContext, 'delete')),
             const SizedBox(height: 8),
@@ -115,8 +123,19 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
 
     if (!mounted || action == null) return;
     if (action == 'edit') _openEditSheet(item);
+    if (action == 'live') _goLive(item);
     if (action == 'share') _shareVideo(item);
     if (action == 'delete') _confirmDelete(item);
+  }
+
+  void _goLive(Map<String, dynamic> item) {
+    if (item['dbId'] == null && item['ytVideoId'] == null) {
+      showToast(context, 'Is video ko live nahi kar sakte.', isError: true);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => LiveOldVideosScreen(initialItem: item)),
+    );
   }
 
   void _shareVideo(Map<String, dynamic> item) {
@@ -202,7 +221,19 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
     return Scaffold(
       // ⚠️ FIX: 'myvideos_title' key is now added to app_strings.dart, so
       // this reads from translations again instead of a hardcoded string.
-      appBar: AppBar(title: Text(context.tr('myvideos_title'))),
+      appBar: AppBar(
+        title: Text(context.tr('myvideos_title')),
+        actions: [
+          // ⚠️ NEW: purani videos live karne ka page
+          IconButton(
+            icon: const Icon(Icons.podcasts_rounded),
+            tooltip: 'Live Stream',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LiveOldVideosScreen()),
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -241,7 +272,7 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: isHighlighted
-            ? [BoxShadow(color: AppColors.purple.withOpacity(0.25), blurRadius: 12, spreadRadius: 1)]
+            ? [BoxShadow(color: AppColors.purple.withValues(alpha: 0.25), blurRadius: 12, spreadRadius: 1)]
             : null,
       ),
       child: Row(

@@ -457,6 +457,120 @@ class EmptyView extends StatelessWidget {
   }
 }
 
+// ---------------- Live Stream limits ----------------
+// ⚠️ NEW: Live rules ka app-side model. Asli rules backend (liveStream.js)
+// enforce karta hai — app sirf button disable karke countdown dikhati hai:
+//   • ek time par sirf 1 live
+//   • pichli live ke START se 1 ghanta gap
+//   • rolling 24 ghante mein max 3 live
+// `checkToken` ek special videoUrl hai jo backend ko batata hai ki stream
+// start nahi karni, sirf limits wapas bhejni hain.
+class LiveLimits {
+  static const String checkToken = '__CHECK_LIMITS__';
+
+  final bool canStart;
+  final String? code;
+  final int usedInWindow;
+  final int maxPerWindow;
+  final int retryAfterSeconds;
+  final Map<String, dynamic>? activeStream;
+
+  const LiveLimits({
+    this.canStart = true,
+    this.code,
+    this.usedInWindow = 0,
+    this.maxPerWindow = 3,
+    this.retryAfterSeconds = 0,
+    this.activeStream,
+  });
+
+  int get remaining => (maxPerWindow - usedInWindow).clamp(0, maxPerWindow);
+
+  factory LiveLimits.fromJson(Map<String, dynamic> j) {
+    final active = j['activeStream'];
+    return LiveLimits(
+      canStart: j['canStart'] == true,
+      code: j['code']?.toString(),
+      usedInWindow: (j['usedInWindow'] as num?)?.toInt() ?? 0,
+      maxPerWindow: (j['maxPerWindow'] as num?)?.toInt() ?? 3,
+      retryAfterSeconds: (j['retryAfterSeconds'] as num?)?.toInt() ?? 0,
+      activeStream: active is Map ? Map<String, dynamic>.from(active) : null,
+    );
+  }
+}
+
+/// 3725 -> "1:02:05", 605 -> "10:05"
+String formatCountdown(int totalSeconds) {
+  final s = totalSeconds < 0 ? 0 : totalSeconds;
+  final h = s ~/ 3600;
+  final m = (s % 3600) ~/ 60;
+  final sec = s % 60;
+  final mm = m.toString().padLeft(2, '0');
+  final ss = sec.toString().padLeft(2, '0');
+  return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+}
+
+/// Live screens ke upar dikhne wala status: kitne live baki hain, ya agla
+/// live kab hoga (countdown ke saath).
+class LiveLimitBanner extends StatelessWidget {
+  final LiveLimits limits;
+  final int waitSeconds;
+  const LiveLimitBanner({super.key, required this.limits, this.waitSeconds = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = !limits.canStart;
+    final color = blocked ? AppColors.red : AppColors.purple;
+    final icon = blocked ? Icons.timer_outlined : Icons.podcasts_rounded;
+
+    String text;
+    switch (limits.code) {
+      case 'LIVE_ALREADY_RUNNING':
+        text = 'Aapki ek live stream pehle se chal rahi hai.';
+        break;
+      case 'LIVE_DAILY_LIMIT':
+        text = '24 ghante mein ${limits.maxPerWindow} live poore ho chuke hain. Agla slot:';
+        break;
+      case 'LIVE_COOLDOWN':
+        text = 'Naya live pichli live ke 1 ghante baad hi ho sakta hai. Agla live:';
+        break;
+      default:
+        text = 'Is 24 ghante mein ${limits.remaining} live baki hain (${limits.usedInWindow}/${limits.maxPerWindow} use hue).';
+    }
+
+    final showTimer = blocked && waitSeconds > 0 && limits.code != 'LIVE_ALREADY_RUNNING';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ),
+          if (showTimer) ...[
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(999)),
+              child: Text(
+                formatCountdown(waitSeconds),
+                style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 String formatDateTime(String? iso) {
   if (iso == null) return '';
   final d = DateTime.tryParse(iso);
