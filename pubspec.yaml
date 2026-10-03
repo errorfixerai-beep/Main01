@@ -45,6 +45,14 @@ dependencies:
   image_picker: ^1.1.2
   video_player: ^2.9.1
 
+  # ⚠️ NEW — Live Stream update
+  # Phone camera se seedha YouTube par RTMP live (live_camera_screen.dart)
+  apivideo_live_stream: ^1.2.0
+  # Live chalte waqt app ke andar YouTube ka live preview (live_stream_screen.dart)
+  youtube_player_iframe: ^5.2.2
+  # Camera live ke dauraan screen on rakhne ke liye
+  wakelock_plus: ^1.2.8
+
   # Utilities
   intl: ^0.20.3
   fl_chart: ^1.2.0

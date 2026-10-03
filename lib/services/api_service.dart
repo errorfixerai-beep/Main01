@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config.dart';
@@ -10,6 +11,29 @@ class ApiException implements Exception {
   ApiException(this.message, {this.status, this.code});
   @override
   String toString() => message;
+}
+
+/// ⚠️ NEW: MultipartRequest jo upload ke dauraan bytes gin-ti hai (progress bar ke liye).
+/// finalize() ki stream ko lazily transform karta hai, isliye back-pressure bana rehta hai —
+/// 2GB file memory mein nahi bharti, aur progress asli network speed ke hisaab se chalta hai.
+class _ProgressMultipartRequest extends http.MultipartRequest {
+  final void Function(int sent, int total)? onProgress;
+  _ProgressMultipartRequest(String method, Uri url, {this.onProgress}) : super(method, url);
+
+  @override
+  http.ByteStream finalize() {
+    final byteStream = super.finalize();
+    final total = contentLength;
+    var sent = 0;
+    final transformer = StreamTransformer<List<int>, List<int>>.fromHandlers(
+      handleData: (data, sink) {
+        sent += data.length;
+        onProgress?.call(sent, total);
+        sink.add(data);
+      },
+    );
+    return http.ByteStream(byteStream.transform(transformer));
+  }
 }
 
 class ApiService {
@@ -112,6 +136,56 @@ class ApiService {
     if (res.statusCode == 401 && data['code'] == 'TOKEN_EXPIRED' && retry) {
       final refreshed = await _refreshAccessToken();
       if (refreshed) return uploadMultipart(path, fields: fields, files: files, retry: false, method: method);
+    }
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException(data['message'] ?? 'Upload failed', status: res.statusCode, code: data['code']);
+    }
+    return data;
+  }
+
+  /// ⚠️ NEW: ek file upload karta hai aur [onProgress] se (sent, total) bytes batata hai.
+  /// Token expire hone par naya token lekar file dobara bhejta hai (MultipartFile ek baar hi
+  /// use ho sakti hai, isliye retry mein file path se naya object banta hai).
+  Future<Map<String, dynamic>> _uploadFileWithProgress(
+    String path, {
+    required String fieldName,
+    required String filePath,
+    required http.MediaType contentType,
+    void Function(int sent, int total)? onProgress,
+    bool retry = true,
+  }) async {
+    final token = await StorageService.getAccessToken();
+    final request = _ProgressMultipartRequest(
+      'POST',
+      Uri.parse('${AppConfig.apiBaseUrl}$path'),
+      onProgress: onProgress,
+    );
+    if (token != null) request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(await http.MultipartFile.fromPath(fieldName, filePath, contentType: contentType));
+
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+
+    Map<String, dynamic> data = {};
+    if (res.body.isNotEmpty) {
+      try {
+        data = jsonDecode(res.body) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+
+    if (res.statusCode == 401 && data['code'] == 'TOKEN_EXPIRED' && retry) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        return _uploadFileWithProgress(
+          path,
+          fieldName: fieldName,
+          filePath: filePath,
+          contentType: contentType,
+          onProgress: onProgress,
+          retry: false,
+        );
+      }
     }
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -374,16 +448,34 @@ class ApiService {
 
   // ---------------- Live Streaming (upload + start/stop/status) ----------------
   // ------ POST /api/live-stream/upload-video ------ //
-  Future<Map<String, dynamic>> uploadLiveVideo(String videoPath) async {
+  // ⚠️ UPDATE: ab [onProgress] se upload ka (sent, total) bytes milta hai — progress bar ke liye.
+  Future<Map<String, dynamic>> uploadLiveVideo(
+    String videoPath, {
+    void Function(int sent, int total)? onProgress,
+  }) async {
     final mime = _lookupMimeOrDefault(videoPath, 'video/mp4');
-    final file = await http.MultipartFile.fromPath('video', videoPath, contentType: mime);
-    return uploadMultipart('/live-stream/upload-video', fields: {}, files: [file]);
+    return _uploadFileWithProgress(
+      '/live-stream/upload-video',
+      fieldName: 'video',
+      filePath: videoPath,
+      contentType: mime,
+      onProgress: onProgress,
+    );
   }
 
   // ------ POST /api/live-stream/start ------ //
   Future<Map<String, dynamic>> startLiveStream({required String videoUrl, String? title, String? description}) =>
       _request('/live-stream/start', method: 'POST', body: {
         'videoUrl': videoUrl,
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+      });
+
+  // ------ POST /api/live-stream/start-camera ------ //
+  // ⚠️ NEW: phone camera se live. Response: { streamId, rtmpUrl, streamKey, watchUrl,
+  // secondsAllowed, isFreeTrial, ... } — app inhi se camera ko YouTube par bhejti hai.
+  Future<Map<String, dynamic>> startCameraLive({String? title, String? description}) =>
+      _request('/live-stream/start-camera', method: 'POST', body: {
         if (title != null) 'title': title,
         if (description != null) 'description': description,
       });

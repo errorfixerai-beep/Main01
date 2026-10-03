@@ -19,6 +19,8 @@ import 'rate_us_screen.dart';
 import 'ai_ideas_screen.dart';
 import 'ai_title_description_screen.dart';
 import 'channel_audit_screen.dart';
+// ⚠️ NEW: Quick Actions mein "Video Analytics" ki jagah "Live Stream" button.
+import 'live_stream_screen.dart';
 
 const String kIdeasPopupLastShownKey = 'ideas_popup_last_shown_ms';
 
@@ -343,10 +345,15 @@ class _DashboardHomeState extends State<_DashboardHome> {
                         label: context.tr('qa_upload_video'),
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UploadScreen())).then((_) => _load(showLoader: false)),
                       ),
+                      // ⚠️ CHANGED: yahan pehle "Video Analytics" tha. Ab "Live Stream".
+                      // (Analytics ab bottom bar ke Analytics tab se khulta hai.)
+                      // Label seedha likha hai kyunki app_strings.dart mein iski key abhi nahi hai.
                       _quickAction(
-                        icon: Icons.bar_chart_rounded,
-                        label: context.tr('qa_video_analytics'),
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AnalyticsScreen())),
+                        icon: Icons.podcasts_rounded,
+                        label: 'Live Stream',
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const LiveStreamScreen()))
+                            .then((_) => _load(showLoader: false)),
                       ),
                       _quickAction(
                         icon: Icons.auto_awesome_rounded,
