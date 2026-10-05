@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 
 /// ⚠️ NEW: Phone ke camera se seedha YouTube par live.
@@ -16,6 +17,12 @@ import '../widgets/common.dart';
 /// 24 ghante mein max 3, aur plan ke hours kat-te hain.
 ///
 /// Dhyan: live ke dauraan app khuli rehni chahiye (background mein camera Android band kar deta hai).
+///
+/// ⚠️ FIX (camera app mein dikh raha tha par YouTube par nahi): ab connect karne ke baad backend
+/// ke through YouTube se pucha jata hai ki data SACH MEIN aa raha hai ya nahi (streamStatus == active).
+/// Nahi aaya to dusre URL format (slash ke saath/bina, rtmp / rtmps) ek-ek karke try hote hain.
+/// Kaun sa URL chala wo live screen par dikhta hai. Sab fail hone par live start hi nahi hoti
+/// aur slot wapas mil jata hai.
 class LiveCameraScreen extends StatefulWidget {
   /// Camera live chal rahi ho to true — LiveStreamScreen is flag se pehchanta hai ki
   /// server par dikhne wali camera session "adhoori" (app band hui thi) hai ya abhi chal rahi hai.
@@ -46,10 +53,20 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
   int _secondsAllowed = 0;
   int _secondsElapsed = 0;
   bool _muted = false;
-  bool _connected = false;
   bool _stopping = false;
 
+  // YouTube connection ki asli sthiti
+  bool _trying = false;        // connect/fallback chal raha hai — callbacks se session band mat karo
+  bool _ytActive = false;      // YouTube ko data mil raha hai
+  bool _polling = false;
+  String? _rtmpError;          // library ka last error (callback se)
+  String _connectInfo = '';    // user ko dikhane wala status / chala hua URL
+  String? _ytHealth;           // YouTube stream health (good/ok/bad/noData)
+
   bool get _blocked => !_limits.canStart;
+
+  /// Translation helper — async/callback ke andar bhi safe (widget hat chuka ho to key hi lauta deta hai).
+  String _t(String key) => mounted ? context.tr(key) : key;
 
   @override
   void initState() {
@@ -86,7 +103,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     if (state == AppLifecycleState.paused) {
       if (_stage == _CamStage.live || _stage == _CamStage.starting) {
         // Android background mein camera chalne nahi deta — saaf tareeke se live band karo.
-        _endSession(message: 'App background mein gayi, isliye camera live band ho gayi.', isError: true);
+        _endSession(message: _t('live_cam_bg_stopped'), isError: true);
       } else {
         c.stopPreview();
       }
@@ -105,6 +122,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     if (_stage == _CamStage.live) {
       _secondsElapsed++;
       changed = true;
+      if (_secondsElapsed % 10 == 0) _pollYoutube();
       if (_secondsAllowed > 0 && _secondsElapsed >= _secondsAllowed) autoEnded = true;
     }
     if (_waitSeconds > 0) {
@@ -114,7 +132,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     }
 
     if (changed) setState(() {});
-    if (autoEnded) _endSession(message: 'Aapka allotted time khatam ho gaya — live band ho gayi.');
+    if (autoEnded) _endSession(message: _t('live_cam_time_over'));
     if (waitDone) _refreshLimits();
   }
 
@@ -146,7 +164,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
       if (!mounted) return;
       setState(() {
         _permanentlyDenied = cam.isPermanentlyDenied || mic.isPermanentlyDenied;
-        _errorText = 'Camera aur Microphone ki permission chahiye.';
+        _errorText = _t('live_cam_perm_needed');
         _stage = _CamStage.error;
       });
       return;
@@ -156,12 +174,22 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
       final controller = ApiVideoLiveStreamController(
         initialAudioConfig: AudioConfig(),
         initialVideoConfig: VideoConfig.withDefaultBitrate(),
-        onConnectionSuccess: () {
-          if (mounted) setState(() => _connected = true);
+        onConnectionSuccess: () => debugPrint('[CameraLive] RTMP connection success'),
+        onConnectionFailed: (String error) {
+          debugPrint('[CameraLive] RTMP connection failed: $error');
+          _rtmpError = error;
+          if (!_trying) _handleConnectionProblem(_t('live_cam_connect_failed').replaceAll('%1', error));
         },
-        onConnectionFailed: (String error) => _handleConnectionProblem('YouTube se connect nahi ho paya: $error'),
-        onDisconnection: () => _handleConnectionProblem('Live connection toot gaya.'),
-        onError: (Exception e) => _handleConnectionProblem('Camera error: $e'),
+        onDisconnection: () {
+          debugPrint('[CameraLive] RTMP disconnected');
+          if (_trying) return; // fallback mein hum khud stopStreaming bulate hain
+          _handleConnectionProblem(_t('live_cam_conn_lost'));
+        },
+        onError: (Exception e) {
+          debugPrint('[CameraLive] error: $e');
+          _rtmpError = e.toString();
+          if (!_trying) _handleConnectionProblem(_t('live_cam_error').replaceAll('%1', '$e'));
+        },
       );
       await controller.initialize();
       if (!mounted) {
@@ -175,7 +203,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorText = 'Camera start nahi ho paya: $e';
+        _errorText = _t('live_cam_start_failed').replaceAll('%1', '$e');
         _stage = _CamStage.error;
       });
     }
@@ -187,7 +215,10 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     if (controller == null || _blocked || _stage != _CamStage.ready) return;
     setState(() {
       _stage = _CamStage.starting;
-      _connected = false;
+      _ytActive = false;
+      _ytHealth = null;
+      _rtmpError = null;
+      _connectInfo = _t('live_cam_session_creating');
     });
 
     String? createdStreamId;
@@ -197,29 +228,43 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
 
       createdStreamId = res['streamId']?.toString();
       final rtmpUrl = res['rtmpUrl']?.toString();
+      final rtmpsUrl = res['rtmpsUrl']?.toString();
       final streamKey = res['streamKey']?.toString();
       if (createdStreamId == null || rtmpUrl == null || streamKey == null) {
-        throw ApiException('Server se camera live ki details nahi mili.');
+        throw ApiException(_t('live_cam_no_details'));
       }
+      _streamId = createdStreamId; // ab se koi bhi band-karne wala raasta server session bhi band karega
 
-      // ⚠️ url bina trailing "/" ke — package khud url/streamKey jodta hai.
-      await controller.startStreaming(streamKey: streamKey, url: rtmpUrl);
+      final usedUrl = await _connectToYouTube(
+        controller,
+        streamId: createdStreamId,
+        key: streamKey,
+        urls: [rtmpUrl, rtmpsUrl],
+      );
+      if (usedUrl == null) {
+        throw ApiException(
+          _rtmpError != null
+              ? _t('live_cam_no_data_detail').replaceAll('%1', _rtmpError!)
+              : _t('live_cam_no_data_nodetail'),
+        );
+      }
 
       if (!mounted) return;
       LiveCameraScreen.active = true;
       WakelockPlus.enable(); // live ke dauraan screen band na ho
       setState(() {
-        _streamId = createdStreamId;
         _watchUrl = res['watchUrl']?.toString();
         _isFreeTrial = res['isFreeTrial'] == true;
         _secondsAllowed = (res['secondsAllowed'] as num?)?.toInt() ?? 0;
         _secondsElapsed = 0;
+        _ytActive = true;
+        _connectInfo = usedUrl;
         _stage = _CamStage.live;
       });
-      showToast(context, _isFreeTrial ? 'Free trial camera live shuru! (5 minute)' : 'Camera live shuru ho gayi! 🎉', isSuccess: true);
+      showToast(context, context.tr(_isFreeTrial ? 'live_cam_trial_started' : 'live_cam_started'), isSuccess: true);
       _refreshLimits();
     } catch (e) {
-      // Server par session ban chuka ho to release karo (slot wapas mil sakta hai).
+      // Server par session ban chuka ho to release karo (kabhi live nahi hua to slot wapas milta hai).
       if (createdStreamId != null) {
         try {
           await controller.stopStreaming();
@@ -227,11 +272,100 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
         try {
           await ApiService.instance.stopLiveStream(createdStreamId);
         } catch (_) {}
+        _streamId = null;
       }
       if (!mounted) return;
-      setState(() => _stage = _CamStage.ready);
+      setState(() {
+        _stage = _CamStage.ready;
+        _connectInfo = '';
+      });
       showApiError(context, e);
       _refreshLimits();
+    }
+  }
+
+  /// URL ke alag-alag format ek-ek karke try karta hai (library "url/streamKey" jodti hai ya
+  /// "urlstreamKey" — pakka nahi, isliye dono). Har try ke baad backend se YouTube ki sthiti
+  /// poochta hai. Jo URL chala wo return hota hai, koi nahi chala to null.
+  Future<String?> _connectToYouTube(
+    ApiVideoLiveStreamController controller, {
+    required String streamId,
+    required String key,
+    required List<String?> urls,
+  }) async {
+    final candidates = <String>[];
+    for (final u in urls) {
+      if (u == null || u.isEmpty) continue;
+      final base = u.replaceAll(RegExp(r'/+$'), '');
+      candidates.add(base);
+      candidates.add('$base/');
+    }
+
+    _trying = true;
+    try {
+      for (var i = 0; i < candidates.length; i++) {
+        final url = candidates[i];
+        _rtmpError = null;
+        if (mounted) setState(() => _connectInfo = _t('live_cam_connecting').replaceAll('%1', '${i + 1}').replaceAll('%2', '${candidates.length}'));
+        debugPrint('[CameraLive] try $url');
+
+        try {
+          await controller.startStreaming(streamKey: key, url: url);
+        } catch (e) {
+          _rtmpError = e.toString();
+        }
+
+        if (_rtmpError == null && await _waitForYoutubeData(streamId, 16)) {
+          debugPrint('[CameraLive] YouTube ko data mil gaya via $url');
+          return url;
+        }
+
+        debugPrint('[CameraLive] $url se data nahi mila (error: $_rtmpError)');
+        try {
+          await controller.stopStreaming();
+        } catch (_) {}
+        await Future.delayed(const Duration(milliseconds: 700));
+      }
+      return null;
+    } finally {
+      _trying = false;
+    }
+  }
+
+  /// Backend (jo YouTube se poochta hai) se confirm: streamStatus == active matlab data aa raha hai.
+  Future<bool> _waitForYoutubeData(String streamId, int seconds) async {
+    for (var waited = 0; waited < seconds; waited += 2) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (_rtmpError != null) return false; // library ne hi error de diya
+      try {
+        final res = await ApiService.instance.getLiveStreamStatus(streamId);
+        if (res['streamStatus'] == 'active') {
+          _ytHealth = res['health']?.toString();
+          return true;
+        }
+      } catch (_) {
+        // status check fail — agli baar phir try
+      }
+    }
+    return false;
+  }
+
+  /// Live ke dauraan har 10 sec par YouTube ki sthiti (data aa raha hai? health kaisi hai?).
+  Future<void> _pollYoutube() async {
+    final id = _streamId;
+    if (id == null || _polling || _stage != _CamStage.live) return;
+    _polling = true;
+    try {
+      final res = await ApiService.instance.getLiveStreamStatus(id);
+      if (!mounted) return;
+      setState(() {
+        _ytActive = res['streamStatus'] == 'active';
+        _ytHealth = res['health']?.toString();
+      });
+    } catch (_) {
+      // ignore
+    } finally {
+      _polling = false;
     }
   }
 
@@ -265,7 +399,9 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
       _watchUrl = null;
       _secondsElapsed = 0;
       _secondsAllowed = 0;
-      _connected = false;
+      _ytActive = false;
+      _ytHealth = null;
+      _connectInfo = '';
       _stopping = false;
     });
     if (message != null) showToast(context, message, isError: isError, isSuccess: !isError);
@@ -276,13 +412,13 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Live band karein?'),
-        content: const Text('Camera live abhi chal rahi hai. Bahar jaane par live band ho jayegi.'),
+        title: Text(ctx.tr('live_cam_stop_title')),
+        content: Text(ctx.tr('live_cam_stop_body')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Nahi')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ctx.tr('live_cam_no'))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Live band karo', style: TextStyle(color: AppColors.red)),
+            child: Text(ctx.tr('live_cam_stop_confirm'), style: const TextStyle(color: AppColors.red)),
           ),
         ],
       ),
@@ -294,7 +430,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
     try {
       await _controller?.switchCamera();
     } catch (e) {
-      if (mounted) showToast(context, 'Camera badal nahi paya.', isError: true);
+      if (mounted) showToast(context, context.tr('live_cam_switch_failed'), isError: true);
     }
   }
 
@@ -320,11 +456,11 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
         if (_stage == _CamStage.starting) return; // start ke beech mein bahar nahi
         final stop = await _confirmStop();
         if (!stop) return;
-        await _endSession(message: 'Camera live band ho gayi.');
+        await _endSession(message: _t('live_cam_stopped'));
         if (mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        appBar: AppBar(title: const Text('Camera se Live')),
+        appBar: AppBar(title: Text(context.tr('live_cam_title'))),
         body: SafeArea(child: _buildBody()),
       ),
     );
@@ -359,13 +495,13 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
               ElevatedButton.icon(
                 onPressed: openAppSettings,
                 icon: const Icon(Icons.settings_rounded, size: 18),
-                label: const Text('Settings kholein'),
+                label: Text(context.tr('live_cam_open_settings')),
               )
             else
               ElevatedButton.icon(
                 onPressed: _initCamera,
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Dobara try karein'),
+                label: Text(context.tr('live_cam_retry')),
               ),
           ],
         ),
@@ -429,13 +565,18 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
               TextField(
                 controller: _titleCtrl,
                 maxLength: 100,
-                decoration: const InputDecoration(
-                  labelText: 'Stream Title (optional)',
-                  hintText: 'e.g. Meri Live Stream',
+                decoration: InputDecoration(
+                  labelText: context.tr('live_stream_title_label'),
+                  hintText: context.tr('live_cam_title_hint'),
                 ),
               ),
+              if (starting && _connectInfo.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_connectInfo, style: const TextStyle(color: AppColors.purple, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                ),
               Text(
-                'Camera aur mic seedha YouTube par jayenge. Live ke dauraan app khuli rakhein aur internet accha rakhein (720p ke liye lagbhag 3 Mbps upload).',
+                context.tr('live_cam_note'),
                 style: TextStyle(color: context.surfaces.textDim, fontSize: 12),
               ),
             ],
@@ -454,7 +595,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
               icon: starting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.podcasts_rounded, size: 18),
-              label: Text(starting ? 'Starting...' : 'Go Live'),
+              label: Text(context.tr(starting ? 'live_btn_starting' : 'live_btn_go_live')),
             ),
           ),
         ),
@@ -485,11 +626,11 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
                           Container(
                             width: 9,
                             height: 9,
-                            decoration: BoxDecoration(color: _connected ? Colors.redAccent : Colors.orange, shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: _ytActive ? Colors.redAccent : Colors.orange, shape: BoxShape.circle),
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            _connected ? 'LIVE  ${formatCountdown(_secondsElapsed)}' : 'Connecting...',
+                            _ytActive ? 'LIVE  ${formatCountdown(_secondsElapsed)}' : context.tr('live_cam_no_data_badge'),
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12.5),
                           ),
                         ],
@@ -530,18 +671,29 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> with WidgetsBinding
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '${formatCountdown(remaining)} remaining${_isFreeTrial ? ' (Free Trial)' : ''}'
-                '${_waitSeconds > 0 ? '  •  Agla live ${formatCountdown(_waitSeconds)} baad' : ''}',
+                context.tr('live_remaining').replaceAll('%1', formatCountdown(remaining)) +
+                    (_isFreeTrial ? context.tr('live_free_trial_suffix') : '') +
+                    (_waitSeconds > 0 ? context.tr('live_cam_next_short').replaceAll('%1', formatCountdown(_waitSeconds)) : ''),
                 style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5),
               ),
+              if (_ytHealth != null || _connectInfo.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    context.tr('live_cam_health').replaceAll('%1', _ytHealth ?? '-').replaceAll('%2', _connectInfo),
+                    style: TextStyle(color: context.surfaces.textDim, fontSize: 10.5),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.red),
-                  onPressed: _stopping ? null : () => _endSession(message: 'Camera live band ho gayi.'),
+                  onPressed: _stopping ? null : () => _endSession(message: _t('live_cam_stopped')),
                   icon: const Icon(Icons.stop_circle_rounded, size: 18),
-                  label: const Text('Stop Live'),
+                  label: Text(context.tr('live_cam_btn_stop')),
                 ),
               ),
             ],

@@ -111,8 +111,8 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
             Container(width: 40, height: 4, margin: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: context.surfaces.border, borderRadius: BorderRadius.circular(999))),
             ListTile(leading: const Icon(Icons.edit_outlined), title: Text(context.tr('myvideos_edit')), onTap: () => Navigator.pop(sheetContext, 'edit')),
             // ⚠️ NEW: purani video ko live karo (limits LiveOldVideosScreen check karti hai).
-            // Hardcoded text isliye ki app_strings.dart mein iski key abhi nahi hai.
-            ListTile(leading: const Icon(Icons.podcasts_rounded), title: const Text('Live karein'), onTap: () => Navigator.pop(sheetContext, 'live')),
+            // Key: 'myvideos_live' (live_strings_to_add.txt wale block mein).
+            ListTile(leading: const Icon(Icons.podcasts_rounded), title: Text(context.tr('myvideos_live')), onTap: () => Navigator.pop(sheetContext, 'live')),
             ListTile(leading: const Icon(Icons.share_outlined), title: Text(context.tr('myvideos_share')), onTap: () => Navigator.pop(sheetContext, 'share')),
             ListTile(leading: const Icon(Icons.delete_outline_rounded, color: AppColors.red), title: Text(context.tr('myvideos_delete'), style: const TextStyle(color: AppColors.red)), onTap: () => Navigator.pop(sheetContext, 'delete')),
             const SizedBox(height: 8),
@@ -130,7 +130,7 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
 
   void _goLive(Map<String, dynamic> item) {
     if (item['dbId'] == null && item['ytVideoId'] == null) {
-      showToast(context, 'Is video ko live nahi kar sakte.', isError: true);
+      showToast(context, context.tr('live_toast_cannot_live_video'), isError: true);
       return;
     }
     Navigator.of(context).push(
@@ -227,7 +227,7 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
           // ⚠️ NEW: purani videos live karne ka page
           IconButton(
             icon: const Icon(Icons.podcasts_rounded),
-            tooltip: 'Live Stream',
+            tooltip: context.tr('live_title'),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const LiveOldVideosScreen()),
             ),

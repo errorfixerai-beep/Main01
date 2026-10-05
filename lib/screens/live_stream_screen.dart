@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import 'live_camera_screen.dart';
 import 'live_plans_screen.dart';
@@ -172,7 +173,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
     if (streamId == null) return;
     try {
       await ApiService.instance.stopLiveStream(streamId);
-      if (mounted) showToast(context, 'Pichli camera live adhoori thi, band kar di.');
+      if (mounted) showToast(context, context.tr('live_toast_stale_camera'));
     } catch (_) {
       return; // band nahi ho payi to loop mat banao
     }
@@ -236,7 +237,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
         _uploadedVideoUrl = res['videoUrl'];
         _stage = _LiveStage.uploaded;
       });
-      showToast(context, 'Video upload ho gaya ✅', isSuccess: true);
+      showToast(context, context.tr('live_toast_uploaded'), isSuccess: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _stage = _LiveStage.idle);
@@ -266,7 +267,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
         _stage = _LiveStage.live;
       });
 
-      showToast(context, _isFreeTrial ? 'Free trial live shuru! (5 minute)' : 'Live stream shuru ho gaya! 🎉', isSuccess: true);
+      showToast(context, context.tr(_isFreeTrial ? 'live_toast_trial_started' : 'live_toast_started'), isSuccess: true);
       _refreshLimits(); // agle live ka 1-ghante wala countdown
     } catch (e) {
       if (!mounted) return;
@@ -278,7 +279,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
 
   void _handleAutoEnded() {
     if (!mounted) return;
-    showToast(context, 'Aapka allotted time khatam ho gaya — stream automatically band ho gaya.', isError: false);
+    showToast(context, context.tr('live_toast_time_over'), isError: false);
     _resetToIdle();
     _refreshLimits();
   }
@@ -287,7 +288,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
     if (_streamId == null) return;
     try {
       await ApiService.instance.stopLiveStream(_streamId!);
-      if (mounted) showToast(context, 'Stream band ho gaya.', isSuccess: true);
+      if (mounted) showToast(context, context.tr('live_toast_stopped'), isSuccess: true);
     } catch (e) {
       if (mounted) showApiError(context, e);
     } finally {
@@ -335,11 +336,11 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Live Stream'),
+        title: Text(context.tr('live_title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.workspace_premium_rounded),
-            tooltip: 'Plans',
+            tooltip: context.tr('live_plans_tooltip'),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LivePlansScreen())),
           ),
         ],
@@ -364,10 +365,10 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
               LiveLimitBanner(limits: _limits, waitSeconds: _waitSeconds),
               const SizedBox(height: 18),
 
-              Text('Video Select Karein', style: Theme.of(context).textTheme.titleMedium),
+              Text(context.tr('live_select_video'), style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(
-                'Ye video 24/7 loop hoke YouTube par live chalegi. Max size: 2GB.',
+                context.tr('live_select_video_desc'),
                 style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5),
               ),
               const SizedBox(height: 16),
@@ -394,7 +395,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                                 Icon(Icons.video_call_rounded, size: 36, color: context.surfaces.textDim),
                                 const SizedBox(height: 8),
                                 Text(
-                                  _blocked ? 'Abhi naya live shuru nahi ho sakta' : 'Tap to select video',
+                                  context.tr(_blocked ? 'live_blocked_hint' : 'live_tap_select'),
                                   style: TextStyle(color: context.surfaces.textDim, fontSize: 13),
                                 ),
                               ],
@@ -430,9 +431,9 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                 TextField(
                   controller: _titleController,
                   maxLength: 100,
-                  decoration: const InputDecoration(
-                    labelText: 'Stream Title (optional)',
-                    hintText: 'e.g. 24/7 Lofi Music',
+                  decoration: InputDecoration(
+                    labelText: context.tr('live_stream_title_label'),
+                    hintText: context.tr('live_stream_title_hint'),
                   ),
                 ),
               ],
@@ -441,7 +442,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
               const SizedBox(height: 20),
               Divider(color: context.surfaces.border),
               const SizedBox(height: 12),
-              Text('Ya doosre tareeke se live karein', style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
+              Text(context.tr('live_other_ways'), style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5)),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -453,7 +454,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                           if (mounted) _refreshLimits();
                         },
                   icon: const Icon(Icons.video_library_outlined, size: 18),
-                  label: const Text('Purani video se live karein'),
+                  label: Text(context.tr('live_btn_old_video')),
                 ),
               ),
               const SizedBox(height: 10),
@@ -467,7 +468,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                           if (mounted) _refreshLimits();
                         },
                   icon: const Icon(Icons.videocam_rounded, size: 18),
-                  label: const Text('Camera se live karein'),
+                  label: Text(context.tr('live_btn_camera')),
                 ),
               ),
             ],
@@ -496,7 +497,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
             children: [
               Expanded(
                 child: Text(
-                  processing ? 'Server par process ho raha hai...' : 'Uploading...',
+                  context.tr(processing ? 'live_processing' : 'live_uploading'),
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
                 ),
               ),
@@ -517,8 +518,8 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
           const SizedBox(height: 8),
           Text(
             processing
-                ? 'Video storage par save ho rahi hai — thoda ruko.'
-                : '${_fmtBytes(_uploadSent)} / ${_fmtBytes(_uploadTotal)}  •  Screen band mat karein',
+                ? context.tr('live_processing_note')
+                : context.tr('live_upload_progress_note').replaceAll('%1', _fmtBytes(_uploadSent)).replaceAll('%2', _fmtBytes(_uploadTotal)),
             style: TextStyle(color: context.surfaces.textDim, fontSize: 12),
           ),
         ],
@@ -539,7 +540,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
         icon: uploading
             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.cloud_upload_rounded, size: 18),
-        label: Text(uploading ? (processing ? 'Processing...' : 'Uploading $pct%') : 'Upload Video'),
+        label: Text(uploading ? (processing ? context.tr('live_btn_processing') : context.tr('live_btn_uploading_pct').replaceAll('%d', pct)) : context.tr('live_btn_upload')),
       );
     } else if (_stage == _LiveStage.uploaded || _stage == _LiveStage.starting) {
       final starting = _stage == _LiveStage.starting;
@@ -548,7 +549,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
         icon: starting
             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.podcasts_rounded, size: 18),
-        label: Text(starting ? 'Starting...' : 'Go Live'),
+        label: Text(context.tr(starting ? 'live_btn_starting' : 'live_btn_go_live')),
       );
     }
 
@@ -578,15 +579,15 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                 color: Colors.black,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.all(16),
-                child: const Column(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)),
-                    SizedBox(height: 12),
+                    const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)),
+                    const SizedBox(height: 12),
                     Text(
-                      'Preview YouTube se connect ho raha hai...\n(20-30 second lagte hain)',
+                      context.tr('live_preview_connecting'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                     ),
                   ],
                 ),
@@ -626,7 +627,8 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                     Text(_formatDuration(_secondsElapsed), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
                     Text(
-                      '${_formatDuration(remaining)} remaining${_isFreeTrial ? ' (Free Trial)' : ''}',
+                      context.tr('live_remaining').replaceAll('%1', _formatDuration(remaining)) +
+                          (_isFreeTrial ? context.tr('live_free_trial_suffix') : ''),
                       style: const TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
@@ -637,10 +639,10 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                 OutlinedButton.icon(
                   onPressed: () => launchUrl(Uri.parse(_watchUrl!), mode: LaunchMode.externalApplication),
                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                  label: const Text('Watch on YouTube'),
+                  label: Text(context.tr('live_watch_youtube')),
                 ),
               const SizedBox(height: 14),
-              Text('Live Preview', style: Theme.of(context).textTheme.titleSmall),
+              Text(context.tr('live_preview_title'), style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               _buildPreviewBox(),
               const SizedBox(height: 6),
@@ -648,14 +650,14 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Jo viewers YouTube par dekh rahe hain wahi yahan dikhta hai (15-30 sec delay). Preview mute shuru hota hai.',
+                      context.tr('live_preview_note'),
                       style: TextStyle(color: context.surfaces.textDim, fontSize: 11.5),
                     ),
                   ),
                   TextButton.icon(
                     onPressed: _videoId == null ? null : _reloadPreview,
                     icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: const Text('Reload'),
+                    label: Text(context.tr('live_reload')),
                   ),
                 ],
               ),
@@ -675,7 +677,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Text(
-                    'Agla live ${formatCountdown(_waitSeconds)} baad ho sakta hai',
+                    context.tr('live_next_in').replaceAll('%1', formatCountdown(_waitSeconds)),
                     style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5),
                   ),
                 ),
@@ -685,7 +687,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.red),
                   onPressed: _stopLive,
                   icon: const Icon(Icons.stop_circle_rounded, size: 18),
-                  label: const Text('Stop Live Stream'),
+                  label: Text(context.tr('live_btn_stop')),
                 ),
               ),
             ],
@@ -792,7 +794,7 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
 
   Future<void> _openStartSheet(Map<String, dynamic> item) async {
     if (_blocked) {
-      showToast(context, 'Abhi live shuru nahi ho sakta. Upar countdown dekhein.', isError: true);
+      showToast(context, context.tr('live_toast_cannot_start'), isError: true);
       return;
     }
     final title = await showModalBottomSheet<String>(
@@ -812,14 +814,14 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
   Future<void> _start(Map<String, dynamic> item, String title) async {
     final ref = _refOf(item);
     if (ref == null) {
-      showToast(context, 'Is video ko live nahi kar sakte.', isError: true);
+      showToast(context, context.tr('live_toast_cannot_live_video'), isError: true);
       return;
     }
     setState(() => _startingRef = ref);
     try {
       await ApiService.instance.startLiveStream(videoUrl: ref, title: title.isEmpty ? null : title);
       if (!mounted) return;
-      showToast(context, 'Live stream shuru ho gaya! 🎉', isSuccess: true);
+      showToast(context, context.tr('live_toast_started'), isSuccess: true);
       // Live screen server se active stream dekhkar live view khud dikha degi.
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LiveStreamScreen()));
     } catch (e) {
@@ -833,7 +835,7 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Purani Video Live')),
+      appBar: AppBar(title: Text(context.tr('live_old_title'))),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.purple,
@@ -849,7 +851,7 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
                     const SizedBox(height: 14),
                   ],
                   if (_videos.isEmpty)
-                    const EmptyView(message: 'Abhi koi purani video nahi hai.', icon: Icons.video_library_outlined)
+                    EmptyView(message: context.tr('live_old_empty'), icon: Icons.video_library_outlined)
                   else
                     ..._videos.map(_videoCard),
                 ],
@@ -869,13 +871,13 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
         children: [
           const Icon(Icons.podcasts_rounded, color: Colors.white),
           const SizedBox(width: 10),
-          const Expanded(
-            child: Text('Aapki live chal rahi hai', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(context.tr('live_now_running'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: Colors.white),
             onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LiveStreamScreen())),
-            child: const Text('Kholein'),
+            child: Text(context.tr('live_open')),
           ),
         ],
       ),
@@ -884,7 +886,7 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
 
   Widget _videoCard(Map<String, dynamic> item) {
     final thumb = (item['thumbnail'] ?? '').toString();
-    final title = (item['title'] ?? '').toString().isNotEmpty ? item['title'].toString() : 'Untitled video';
+    final title = (item['title'] ?? '').toString().isNotEmpty ? item['title'].toString() : context.tr('apply_to_video_untitled');
     final ref = _refOf(item);
     final isStarting = ref != null && ref == _startingRef;
     final canTap = ref != null && !_blocked && _startingRef == null;
@@ -925,14 +927,30 @@ class _LiveOldVideosScreenState extends State<LiveOldVideosScreen> {
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
+                // ⚠️ FIX: pehle themed ElevatedButton 34px height mein dab jaata tha — label gayab aur
+                // icon aadha dikhta tha. Ab transparent background + purple border/icon/label, aur
+                // minimumSize/padding khud set hain taaki theme ka bada button-size asar na kare.
                 SizedBox(
-                  height: 34,
-                  child: ElevatedButton.icon(
+                  height: 38,
+                  child: OutlinedButton.icon(
                     onPressed: canTap ? () => _openStartSheet(item) : null,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: AppColors.purple,
+                      disabledForegroundColor: context.surfaces.textDim,
+                      side: BorderSide(color: (canTap || isStarting) ? AppColors.purple : context.surfaces.border, width: 1.4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    ),
                     icon: isStarting
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.podcasts_rounded, size: 16),
-                    label: Text(isStarting ? 'Starting...' : 'Go Live', style: const TextStyle(fontSize: 12.5)),
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.purple))
+                        : const Icon(Icons.podcasts_rounded, size: 20),
+                    label: Text(
+                      context.tr(isStarting ? 'live_btn_starting' : 'live_btn_go_live'),
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],
@@ -988,7 +1006,7 @@ class _StartLiveSheetState extends State<_StartLiveSheet> {
                 decoration: BoxDecoration(color: context.surfaces.border, borderRadius: BorderRadius.circular(999)),
               ),
             ),
-            const Text('Live shuru karein', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+            Text(context.tr('live_sheet_title'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
             const SizedBox(height: 14),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -1007,15 +1025,15 @@ class _StartLiveSheetState extends State<_StartLiveSheet> {
             TextField(
               controller: _ctrl,
               maxLength: 100,
-              decoration: const InputDecoration(labelText: 'Stream Title (optional)'),
+              decoration: InputDecoration(labelText: context.tr('live_stream_title_label')),
             ),
             Text(
-              'Ye video 24/7 loop hoke YouTube par live chalegi.',
+              context.tr('live_sheet_desc'),
               style: TextStyle(color: context.surfaces.textDim, fontSize: 12.5),
             ),
             const SizedBox(height: 16),
             GradientButton(
-              label: 'Go Live',
+              label: context.tr('live_btn_go_live'),
               icon: Icons.podcasts_rounded,
               onPressed: () => Navigator.of(context).pop(_ctrl.text.trim()),
             ),

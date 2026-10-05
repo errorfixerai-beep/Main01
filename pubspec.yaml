@@ -27,6 +27,10 @@ dependencies:
   url_launcher: ^6.3.0
   app_links: ^7.2.1
 
+  gal: ^2.3.0
+  share_plus: ^10.0.0
+  path_provider: ^2.1.0
+
   # Chrome Custom Tabs / SFSafariViewController
   flutter_custom_tabs: ^2.2.0
 

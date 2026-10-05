@@ -9,6 +9,8 @@ import '../theme/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/brand_icons.dart';
+// ⚠️ NEW: Milestone achievement popup (subscribers / views card)
+import '../widgets/milestone_popup.dart';
 import 'upload_screen.dart';
 import 'upcoming_screen.dart';
 import 'analytics_screen.dart';
@@ -75,6 +77,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
     super.initState();
     _load().then((_) async {
       if (!mounted) return;
+
+      // ⚠️ NEW: Milestone popup sabse pehle (priority). Agar milestone card
+      // dikha, to is baar Rate Us aur AI Idea popup skip — ek ke upar ek
+      // dialog na khule.
+      final shownMilestone = await MilestonePopup.checkAndShow(context);
+      if (!mounted || shownMilestone) return;
+
       maybeShowRateUsPopup(context);
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted) await _maybeShowIdeaPopup();
@@ -347,10 +356,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       ),
                       // ⚠️ CHANGED: yahan pehle "Video Analytics" tha. Ab "Live Stream".
                       // (Analytics ab bottom bar ke Analytics tab se khulta hai.)
-                      // Label seedha likha hai kyunki app_strings.dart mein iski key abhi nahi hai.
+                      // Label key: 'qa_live_stream' (live_strings_to_add.txt wale block mein).
                       _quickAction(
                         icon: Icons.podcasts_rounded,
-                        label: 'Live Stream',
+                        label: context.tr('qa_live_stream'),
                         onTap: () => Navigator.of(context)
                             .push(MaterialPageRoute(builder: (_) => const LiveStreamScreen()))
                             .then((_) => _load(showLoader: false)),

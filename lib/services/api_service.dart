@@ -552,6 +552,13 @@ class ApiService {
   // ------ GET /api/analytics/audit ------ //
   Future<Map<String, dynamic>> getChannelAudit() => _request('/analytics/audit');
 
+  // ---------------- Milestones ----------------
+  // ------ GET /api/milestones/pending ------ //
+  Future<Map<String, dynamic>> getPendingMilestone() => _request('/milestones/pending');
+  // ------ POST /api/milestones/:id/seen ------ //
+  Future<Map<String, dynamic>> markMilestoneSeen(String id) =>
+      _request('/milestones/$id/seen', method: 'POST');
+
   // ---------------- Notifications ----------------
   // ------ GET /api/notifications ------ //
   Future<Map<String, dynamic>> getNotifications() => _request('/notifications');

@@ -526,16 +526,19 @@ class LiveLimitBanner extends StatelessWidget {
     String text;
     switch (limits.code) {
       case 'LIVE_ALREADY_RUNNING':
-        text = 'Aapki ek live stream pehle se chal rahi hai.';
+        text = context.tr('live_banner_running');
         break;
       case 'LIVE_DAILY_LIMIT':
-        text = '24 ghante mein ${limits.maxPerWindow} live poore ho chuke hain. Agla slot:';
+        text = context.tr('live_banner_daily_limit').replaceAll('%d', '${limits.maxPerWindow}');
         break;
       case 'LIVE_COOLDOWN':
-        text = 'Naya live pichli live ke 1 ghante baad hi ho sakta hai. Agla live:';
+        text = context.tr('live_banner_cooldown');
         break;
       default:
-        text = 'Is 24 ghante mein ${limits.remaining} live baki hain (${limits.usedInWindow}/${limits.maxPerWindow} use hue).';
+        text = context.tr('live_banner_remaining')
+            .replaceAll('%1', '${limits.remaining}')
+            .replaceAll('%2', '${limits.usedInWindow}')
+            .replaceAll('%3', '${limits.maxPerWindow}');
     }
 
     final showTimer = blocked && waitSeconds > 0 && limits.code != 'LIVE_ALREADY_RUNNING';

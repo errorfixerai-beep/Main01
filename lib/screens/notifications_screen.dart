@@ -28,6 +28,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     'schedule_finished': (Icons.movie_creation_rounded, AppColors.purple),
     'subscription_expiring': (Icons.alarm_rounded, AppColors.diamond),
     'free_upload_reset': (Icons.card_giftcard_rounded, AppColors.purpleLight),
+    'milestone': (Icons.emoji_events_rounded, AppColors.diamond),
   };
   static const _defaultIcon = (Icons.notifications_rounded, AppColors.purple);
 
