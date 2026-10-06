@@ -27,6 +27,8 @@ class MilestonePopup {
       await showDialog(
         context: context,
         barrierDismissible: false,
+        // Dark overlay instead of grey, so the home page does not show through.
+        barrierColor: Colors.black.withValues(alpha: 0.88),
         builder: (_) => _MilestoneDialog(data: Map<String, dynamic>.from(m)),
       );
       return true;
@@ -50,11 +52,46 @@ class _MilestoneDialogState extends State<_MilestoneDialog> {
   final _cardKey = GlobalKey();
   bool _working = false;
 
+  String? _avatarUrl;
+
   @override
   void initState() {
     super.initState();
     // Mark as seen the moment it is shown, so the same milestone never pops up twice.
     ApiService.instance.markMilestoneSeen('${widget.data['id']}').catchError((_) => <String, dynamic>{});
+    _avatarUrl = _pickAvatar(widget.data);
+    // Milestone data has no photo -> take it from the connected YouTube channel.
+    if (_avatarUrl == null) _loadAvatarFromChannel();
+  }
+
+  static const _avatarKeys = [
+    'channelThumbnail', 'channelAvatar', 'channelImage', 'channelPhoto',
+    'thumbnail', 'thumbnailUrl', 'avatar', 'image', 'picture', 'profileImage',
+  ];
+
+  /// Looks for a photo URL in a map (also one level deep, e.g. res['channel']).
+  /// If your API uses a different key name, add it to _avatarKeys.
+  String? _pickAvatar(Map? m) {
+    if (m == null) return null;
+    for (final k in _avatarKeys) {
+      final v = m[k];
+      if (v is String && v.startsWith('http')) return v;
+      // thumbnails sometimes come as {url: ...}
+      if (v is Map && v['url'] is String && (v['url'] as String).startsWith('http')) return v['url'] as String;
+    }
+    final nested = m['channel'];
+    if (nested is Map) return _pickAvatar(nested);
+    return null;
+  }
+
+  Future<void> _loadAvatarFromChannel() async {
+    try {
+      final res = await ApiService.instance.getYoutubeChannel();
+      final url = _pickAvatar(res);
+      if (url != null && mounted) setState(() => _avatarUrl = url);
+    } catch (_) {
+      // Avatar is optional; the card falls back to the letter badge.
+    }
   }
 
   Future<Uint8List> _capturePng() async {
@@ -100,49 +137,68 @@ class _MilestoneDialogState extends State<_MilestoneDialog> {
     final d = widget.data;
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: SingleChildScrollView(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                // Only this part is exported as the PNG (no buttons in the image).
+                RepaintBoundary(
+                  key: _cardKey,
+                  child: MilestoneCard(
+                    type: '${d['type']}',
+                    value: (d['value'] as num).toInt(),
+                    channelTitle: '${d['channelTitle'] ?? ''}',
+                    videoTitle: d['videoTitle'] as String?,
+                    channelAvatarUrl: _avatarUrl,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _working ? null : _download,
+                        icon: const Icon(Icons.download_rounded, size: 20),
+                        label: const Text('Download'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.diamond,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _working ? null : _share,
+                        icon: const Icon(Icons.share_rounded, size: 20),
+                        label: const Text('Share'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.purpleLight,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          RepaintBoundary(
-            key: _cardKey,
-            child: MilestoneCard(
-              type: '${d['type']}',
-              value: (d['value'] as num).toInt(),
-              channelTitle: '${d['channelTitle'] ?? ''}',
-              videoTitle: d['videoTitle'] as String?,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _working ? null : _download,
-                  icon: const Icon(Icons.download_rounded, size: 20),
-                  label: const Text('Download'),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.diamond, foregroundColor: Colors.black),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _working ? null : _share,
-                  icon: const Icon(Icons.share_rounded, size: 20),
-                  label: const Text('Share'),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.purpleLight),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

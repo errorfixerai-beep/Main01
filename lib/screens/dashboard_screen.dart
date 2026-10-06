@@ -59,7 +59,10 @@ class _DashboardHome extends StatefulWidget {
   State<_DashboardHome> createState() => _DashboardHomeState();
 }
 
-class _DashboardHomeState extends State<_DashboardHome> {
+// ⚠️ CHANGED: WidgetsBindingObserver added so we notice when the user returns
+// from the YouTube connect screen (browser) and can show the first milestone
+// card / idea popup for the freshly connected channel.
+class _DashboardHomeState extends State<_DashboardHome> with WidgetsBindingObserver {
   Map<String, dynamic>? data;
   List<dynamic> notifications = [];
   int unreadCount = 0;
@@ -71,10 +74,12 @@ class _DashboardHomeState extends State<_DashboardHome> {
   List<Map<String, dynamic>> recentVideos = [];
 
   bool loading = true;
+  bool _resumeBusy = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load().then((_) async {
       if (!mounted) return;
 
@@ -90,7 +95,46 @@ class _DashboardHomeState extends State<_DashboardHome> {
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _onResume();
+  }
+
+  // Back from the YouTube connect screen: reload, and if the channel was JUST
+  // connected, wait for the backend to create the first milestone and show it.
+  Future<void> _onResume() async {
+    if (_resumeBusy) return;
+    _resumeBusy = true;
+    try {
+      final wasConnected = youtubeChannel != null;
+      await _load(showLoader: false);
+      if (!mounted) return;
+      if (!wasConnected && youtubeChannel != null) {
+        var shown = false;
+        for (final waitSec in const [3, 4, 5]) {
+          await Future.delayed(Duration(seconds: waitSec));
+          if (!mounted) return;
+          shown = await MilestonePopup.checkAndShow(context);
+          if (shown) break;
+        }
+        // No milestone card -> now (and only now) suggest ideas for this channel.
+        if (!shown && mounted) await _maybeShowIdeaPopup();
+      }
+    } finally {
+      _resumeBusy = false;
+    }
+  }
+
   Future<void> _maybeShowIdeaPopup() async {
+    // ⚠️ FIX: no channel connected -> no ideas. (Also do NOT start the 24h timer.)
+    if (youtubeChannel == null) return;
+
     final prefs = await SharedPreferences.getInstance();
     final lastShown = prefs.getInt(kIdeasPopupLastShownKey);
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -98,8 +142,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
       return;
     }
     if (!mounted) return;
-    final niche = youtubeChannel?['category'] ?? youtubeChannel?['topicCategory'];
-    await showIdeaPopup(context, channelNiche: niche is String && niche.isNotEmpty ? niche : null);
+
+    // ⚠️ FIX: niche comes from the connected channel (its category, else its name).
+    final category = (youtubeChannel?['category'] ?? '').toString().trim();
+    final title = (youtubeChannel?['channelTitle'] ?? '').toString().trim();
+    final niche = category.isNotEmpty ? category : title;
+
+    await showIdeaPopup(context, channelNiche: niche.isNotEmpty ? niche : null);
     await prefs.setInt(kIdeasPopupLastShownKey, now);
   }
 
@@ -142,6 +191,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
         return bTime.compareTo(aTime);
       });
 
+      if (!mounted) return;
       setState(() {
         data = dash;
         notifications = (notifRes['notifications'] as List?) ?? [];

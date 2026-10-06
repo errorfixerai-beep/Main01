@@ -36,7 +36,10 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+// ⚠️ CHANGED: WidgetsBindingObserver added — this tab lives in an IndexedStack, so
+// initState runs only once. We refresh when the app comes back from the browser
+// (YouTube / Facebook connect) so the connected channel shows up immediately.
+class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
   static const _supportCategoryKeys = [
     'support_cat_payment',
     'support_cat_upload_failed',
@@ -57,40 +60,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await context.read<AuthProvider>().refreshUser();
-      if (mounted) _loadLiveChannel();
-    });
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshChannel());
     _loadMetaStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Coming back from the browser (YouTube/Facebook connect) -> refresh everything.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshChannel();
+      _loadMetaStatus();
+    }
+  }
+
+  Future<void> _refreshChannel() async {
+    if (!mounted) return;
+    await context.read<AuthProvider>().refreshUser();
+    if (!mounted) return;
+    await _loadLiveChannel();
   }
 
   Future<void> _loadMetaStatus() async {
     try {
       final res = await ApiService.instance.getMetaStatus();
-      setState(() => _metaStatus = res);
+      if (mounted) setState(() => _metaStatus = res);
     } catch (_) {
-      setState(() => _metaStatus = null);
+      if (mounted) setState(() => _metaStatus = null);
     } finally {
       if (mounted) setState(() => _loadingMeta = false);
     }
   }
 
+  // ⚠️ CHANGED: no longer quits early when the cached user has no channel yet
+  // (that was the bug: right after connecting, the cached user was still empty).
+  // A 404 simply means "not connected" -> show the Connect YouTube card.
   Future<void> _loadLiveChannel() async {
-    final user = context.read<AuthProvider>().user ?? {};
-    if (user['youtubeChannel'] == null) return;
+    if (!mounted) return;
     setState(() {
       _loadingChannel = true;
       _liveChannelFetchFailed = false;
     });
     try {
       final res = await ApiService.instance.getYoutubeChannel();
-      if (mounted) {
-        setState(() {
-          _liveChannel = res['channel'];
-          _liveChannelFetchFailed = false;
-        });
+      if (mounted) setState(() => _liveChannel = res['channel']);
+      debugPrint('✅ [Profile] Live YouTube channel fetched: subscriberCount=${res['channel']?['subscriberCount']}');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.status == 404) {
+        setState(() => _liveChannel = null);
+      } else {
+        debugPrint('❌ [Profile] Live YouTube channel fetch FAILED: $e');
+        setState(() => _liveChannelFetchFailed = true);
       }
-      debugPrint('✅ [Profile] Live YouTube channel fetched: subscriberCount=${res['channel']?['subscriberCount']}, stale=${res['stale']}');
     } catch (e) {
       debugPrint('❌ [Profile] Live YouTube channel fetch FAILED: $e');
       if (mounted) setState(() => _liveChannelFetchFailed = true);
