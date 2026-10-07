@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_custom_tabs/flutter_custom_tabs.dart' as custom_tabs;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/language_provider.dart';
 import '../services/auth_provider.dart';
 import '../services/api_service.dart';
@@ -116,9 +115,17 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     }
   }
 
+  // ⚠️ FIX (Boss request): the dialog used to close on EVERY tap of Apply —
+  // even with an empty box or a wrong code. Now:
+  //   * empty box      -> stays open, shows "enter a code or tap Skip"
+  //   * wrong/invalid  -> stays open, shows the backend's message under the box
+  //   * valid code     -> success toast, then closes
+  //   * "Skip"         -> the ONLY way to leave without a valid code
+  // TODO: move the two English fallback messages into app_strings.dart.
   Future<void> _showReferralDialog() async {
     final referralCtrl = TextEditingController();
     bool submitting = false;
+    String? errorText;
 
     await showDialog(
       context: context,
@@ -135,8 +142,16 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
               const SizedBox(height: 14),
               TextField(
                 controller: referralCtrl,
+                enabled: !submitting,
                 textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(hintText: 'e.g. 102458XK9F2'),
+                onChanged: (_) {
+                  if (errorText != null) setDialogState(() => errorText = null);
+                },
+                decoration: InputDecoration(
+                  hintText: 'e.g. 102458XK9F2',
+                  errorText: errorText,
+                  errorMaxLines: 3,
+                ),
               ),
             ],
           ),
@@ -151,17 +166,38 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
                   : () async {
                       final code = referralCtrl.text.trim();
                       if (code.isEmpty) {
-                        Navigator.pop(dialogContext);
+                        setDialogState(() => errorText = 'Please enter a referral code, or tap Skip.');
                         return;
                       }
-                      setDialogState(() => submitting = true);
+                      setDialogState(() {
+                        submitting = true;
+                        errorText = null;
+                      });
                       try {
                         final res = await ApiService.instance.applyReferralCode(code);
+                        // Even a 200 response can mean "not matched" (success:false) -> stay open.
+                        if (res['success'] == false) {
+                          final failMsg = (res['message'] ?? '').toString().trim();
+                          if (dialogContext.mounted) {
+                            setDialogState(() {
+                              submitting = false;
+                              errorText = failMsg.isNotEmpty ? failMsg : 'Referral code did not match. Please check and try again.';
+                            });
+                          }
+                          return;
+                        }
                         if (mounted) showToast(context, res['message'] ?? context.tr('referral_applied'), isSuccess: true);
-                      } catch (e) {
-                        if (mounted) showApiError(context, e);
-                      } finally {
                         if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      } catch (e) {
+                        final msg = (e is ApiException && e.message.trim().isNotEmpty)
+                            ? e.message
+                            : 'Referral code did not match. Please check and try again.';
+                        if (dialogContext.mounted) {
+                          setDialogState(() {
+                            submitting = false;
+                            errorText = msg;
+                          });
+                        }
                       }
                     },
               child: submitting
@@ -194,11 +230,10 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
   }
 
   // ⚠️ NEW (Boss request — "welcome pop ke baad channel connect ka pop
-  // aaye aur bagal me skip ka option"): shown right after the welcome
+  // aaye aur bagal me skip ka option"): shown right after the referral
   // dialog. "Connect" kicks off the same YouTube OAuth flow used
   // elsewhere in the app (GET /youtube/oauth/url -> Custom Tabs, same as
-  // profile_screen.dart's _connectYoutube); "Skip" just closes it — either
-  // way the flow continues to the idea popup next.
+  // profile_screen.dart's _connectYoutube); "Skip" just closes it.
   Future<void> _showChannelConnectDialog() async {
     bool connecting = false;
     await showDialog(
@@ -267,26 +302,14 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     await _showReferralDialog();
     if (!mounted) return;
 
-    // ⚠️ NEW — Channel Connect step, added between Referral and the Idea
-    // popup per Boss's flow: Referral -> Welcome -> Channel Connect (+Skip)
-    // -> Idea popup -> Dashboard.
+    // Flow: Welcome -> Referral -> Channel Connect (+Skip) -> Dashboard.
     await _showChannelConnectDialog();
     if (!mounted) return;
 
-    // Channel category isn't known synchronously here (connecting happens
-    // in an external browser tab, so there's no channel data back yet) —
-    // the popup falls back to a generic niche this one time. The
-    // dashboard's 24-hour recheck (see dashboard_screen.dart) will use the
-    // real connected channel's category for every subsequent refresh.
-    await showIdeaPopup(context);
-    if (!mounted) return;
-
-    // Stamp "now" as the last-shown time so the dashboard doesn't
-    // immediately show a second idea popup right after this one.
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(kIdeasPopupLastShownKey, DateTime.now().millisecondsSinceEpoch);
-
-    if (!mounted) return;
+    // ⚠️ FIX: the Idea popup used to open here with a generic 'Tech' niche —
+    // even when the user tapped Skip and had NO channel. Removed. Ideas now
+    // appear only from the dashboard, only for a connected channel, using
+    // that channel's own category (see dashboard_screen.dart).
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const DashboardScreen()));
   }
 

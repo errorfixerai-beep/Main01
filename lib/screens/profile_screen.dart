@@ -260,6 +260,15 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                 const SizedBox(height: 8),
                 Divider(color: context.surfaces.border, height: 1),
                 ListTile(
+                  leading: const Icon(Icons.edit_note_rounded, color: AppColors.purple),
+                  // TODO: move these two strings into app_strings.dart for multi-language.
+                  title: const Text('Open YouTube Studio', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('Change channel name, handle & logo', style: TextStyle(color: context.surfaces.textDim, fontSize: 12)),
+                  trailing: Icon(Icons.open_in_new_rounded, color: context.surfaces.textDim, size: 18),
+                  onTap: () => Navigator.pop(sheetContext, 'studio'),
+                ),
+                Divider(color: context.surfaces.border, height: 1),
+                ListTile(
                   leading: const Icon(Icons.link_off_rounded, color: AppColors.red),
                   title: Text(context.tr('disconnect_action'), style: const TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
                   onTap: () => Navigator.pop(sheetContext, 'disconnect'),
@@ -272,6 +281,23 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     );
 
     if (action == 'disconnect') await _disconnectYoutube();
+    if (action == 'studio') await _openYoutubeStudio(channel);
+  }
+
+  // Opens this channel's customization page in YouTube Studio (name, handle, logo
+  // can only be changed there). External app/browser is used so the user's
+  // existing Google login is picked up.
+  Future<void> _openYoutubeStudio(Map<String, dynamic> channel) async {
+    final id = (channel['channelId'] ?? '').toString();
+    final url = id.isNotEmpty
+        ? 'https://studio.youtube.com/channel/$id/editing/profile'
+        : 'https://studio.youtube.com';
+    try {
+      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok && mounted) showToast(context, 'Could not open YouTube Studio', isError: true);
+    } catch (_) {
+      if (mounted) showToast(context, 'Could not open YouTube Studio', isError: true);
+    }
   }
 
   Future<void> _disconnectYoutube() async {

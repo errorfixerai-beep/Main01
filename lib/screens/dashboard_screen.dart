@@ -89,7 +89,9 @@ class _DashboardHomeState extends State<_DashboardHome> with WidgetsBindingObser
       final shownMilestone = await MilestonePopup.checkAndShow(context);
       if (!mounted || shownMilestone) return;
 
-      maybeShowRateUsPopup(context);
+      // ⚠️ FIX: wait for Rate Us to close first, so the Idea popup never opens on top of it.
+      await maybeShowRateUsPopup(context);
+      if (!mounted) return;
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted) await _maybeShowIdeaPopup();
     });
@@ -642,10 +644,14 @@ class _MetricCard extends StatelessWidget {
 // =============================================================================
 
 Future<void> showIdeaPopup(BuildContext context, {String? channelNiche}) async {
+  // ⚠️ FIX: no niche = no connected channel -> never show generic 'Tech' ideas,
+  // no matter which screen calls this.
+  if (channelNiche == null || channelNiche.trim().isEmpty) return;
+
   List<Map<String, dynamic>> ideas = [];
   try {
     final res = await ApiService.instance.aiIdeas(
-      niche: channelNiche ?? 'Tech',
+      niche: channelNiche,
       platform: 'youtube',
       count: 3,
     );
