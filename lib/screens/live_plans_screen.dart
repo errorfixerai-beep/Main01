@@ -293,7 +293,15 @@ class _LivePlansScreenState extends State<LivePlansScreen> with SingleTickerProv
             children: [
               Row(
                 children: [
-                  const Text('📡', style: TextStyle(fontSize: 28)),
+                  // ⚠️ CHANGED: pehle yahan 📡 emoji tha (dish antenna jaisa). Ab Live Stream ka asli icon —
+                  // wahi icon jo Dashboard ke Quick Actions mein "Live Stream" button par hai.
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(14)),
+                    child: const Icon(Icons.podcasts_rounded, color: Colors.white, size: 24),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

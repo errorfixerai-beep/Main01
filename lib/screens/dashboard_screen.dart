@@ -360,6 +360,10 @@ class _DashboardHomeState extends State<_DashboardHome> with WidgetsBindingObser
                   const SizedBox(height: 12),
 
                   GridView.count(
+                    // ⚠️ FIX: padding null hone par Flutter GridView mein MediaQuery ka bottom padding
+                    // (floating bottom bar ki jagah) apne aap jod deta hai — isi se cards aur Quick Actions
+                    // ke beech badi khali jagah banti thi. Zero karne se wo jagah band ho jati hai.
+                    padding: EdgeInsets.zero,
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -394,7 +398,7 @@ class _DashboardHomeState extends State<_DashboardHome> with WidgetsBindingObser
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 12),
 
                   Text(context.tr('quick_actions'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../services/api_service.dart';
@@ -62,6 +63,11 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
 
   // In-app YouTube preview
   YoutubePlayerController? _ytController;
+  // ⚠️ NEW (Error 152-4 fix): YouTube embed ko app ki pehchan Referer se chahiye (Google ki rule:
+  // "https://<app ID>"). Package origin ko hi WebView ka baseUrl/Referer banata hai — isliye app ka
+  // asli package name yahan se origin mein jaata hai. Origin load hone tak preview shuru nahi hota.
+  String? _appOrigin;
+  bool _originReady = false;
 
   LiveLimits _limits = const LiveLimits();
   int _waitSeconds = 0;
@@ -79,6 +85,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
   void initState() {
     super.initState();
     _ticker = Timer.periodic(const Duration(seconds: 1), _onTick);
+    _loadAppOrigin();
     _refreshLimits();
   }
 
@@ -116,16 +123,27 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
   }
 
   // ---------------- live preview ----------------
+  Future<void> _loadAppOrigin() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (info.packageName.isNotEmpty) _appOrigin = 'https://${info.packageName}';
+    } catch (_) {
+      // origin na mile to package ka purana default chalega.
+    } finally {
+      _originReady = true;
+    }
+  }
+
   YoutubePlayerController _createPreviewController(String videoId) {
     return YoutubePlayerController.fromVideoId(
       videoId: videoId,
       autoPlay: true,
-      params: const YoutubePlayerParams(mute: true, showFullscreenButton: true),
+      params: YoutubePlayerParams(mute: true, showFullscreenButton: true, origin: _appOrigin),
     );
   }
 
   void _maybeStartPreview() {
-    if (_ytController != null) return;
+    if (_ytController != null || !_originReady) return;
     final id = _videoId;
     if (id == null || _secondsElapsed < _previewDelaySeconds) return;
     _ytController = _createPreviewController(id);
@@ -608,7 +626,8 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(20)),
+                // ⚠️ CHANGED: plum gradient background hata di — ab transparent. Background hatane se
+                // safed text screen par gayab ho jata, isliye neeche ke text ka rang dark kar diya.
                 child: Column(
                   children: [
                     Row(
@@ -620,16 +639,16 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                           decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
                         ),
                         const SizedBox(width: 8),
-                        const Text('LIVE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                        Text('LIVE', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(_formatDuration(_secondsElapsed), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
+                    Text(_formatDuration(_secondsElapsed), style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 30, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
                     Text(
                       context.tr('live_remaining').replaceAll('%1', _formatDuration(remaining)) +
                           (_isFreeTrial ? context.tr('live_free_trial_suffix') : ''),
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      style: TextStyle(color: context.surfaces.textDim, fontSize: 13),
                     ),
                   ],
                 ),
